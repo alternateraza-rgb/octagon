@@ -22,5 +22,10 @@
       "migrations_dir": "migrations"
     }
   ],
+  // OPENAI_API_KEY is a secret: set it in the dashboard (type Secret) or with `wrangler secret put`.
+  "vars": {
+    "OPENAI_MODEL": "gpt-6-sol",
+    "OPENAI_BASE_URL": "https://api.openai.com/v1"
+  },
   "observability": { "enabled": true }
 }
