@@ -227,14 +227,14 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
               <motion.section key="done" {...slide}>
                 <h1 className={`${display} text-[40px] leading-[1] tracking-[-0.04em]`}>You&apos;re in.</h1>
                 <p className="mt-3 text-[16px] text-fg-2">
-                  The builder is the next piece we&apos;re shipping. Your idea is saved and will open there automatically.
+                  Your idea is waiting in the builder.
                 </p>
                 {prompt && <p className="mt-6 bg-white p-4 text-[15px] ring-1 ring-black/10">{prompt}</p>}
                 <Link
-                  href="/dashboard"
+                  href={prompt ? `/dashboard/sites?prompt=${encodeURIComponent(prompt)}` : "/dashboard"}
                   className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0f0f0f] text-[15px] font-medium text-white transition-colors hover:bg-octa-700"
                 >
-                  Go to your dashboard <ArrowRight size={16} />
+                  {prompt ? "Build my site" : "Go to your dashboard"} <ArrowRight size={16} />
                 </Link>
               </motion.section>
             )}
