@@ -4,7 +4,7 @@ type StreamEvent = {
   type: string;
   delta?: string;
   message?: string;
-  response?: { error?: { message?: string } | null };
+  response?: { error?: { message?: string } | null; incomplete_details?: { reason?: string } | null };
 };
 
 // Streams text from the OpenAI Responses API. Yields text deltas as they arrive.
@@ -42,14 +42,18 @@ export async function* streamText(
         const event = JSON.parse(data) as StreamEvent;
         if (event.type === "response.output_text.delta" && event.delta) yield event.delta;
         else if (event.type === "response.failed") throw new Error(event.response?.error?.message ?? "OpenAI response failed");
+        else if (event.type === "response.incomplete")
+          throw new Error(`OpenAI response was cut off (${event.response?.incomplete_details?.reason ?? "unknown reason"})`);
         else if (event.type === "error") throw new Error(event.message ?? "OpenAI stream error");
       }
     }
   }
 }
 
-// Pipes a generator into a text Response for the browser, and runs `onDone` with the full text
-// even if the browser disconnects, so a finished generation is never lost.
+// Pipes a generator into a text Response for the browser and runs `onDone` with the full text.
+// The generation is pulled by the response body itself: work tied to an open response has no
+// time limit, whereas waitUntil() is cut off 30 seconds after the response starts, which is
+// shorter than a full site build. If the browser leaves early, the rest is finished in waitUntil.
 export function streamToResponse(
   ctx: { waitUntil(promise: Promise<unknown>): void },
   source: AsyncGenerator<string>,
@@ -59,35 +63,54 @@ export function streamToResponse(
     headers?: HeadersInit;
   },
 ) {
-  const { readable, writable } = new TransformStream<string, string>();
-  const writer = writable.getWriter();
-  let clientGone = false;
-  const write = (text: string) => {
-    if (clientGone) return;
-    writer.write(text).catch(() => (clientGone = true));
-  };
+  const encoder = new TextEncoder();
+  let text = "";
+  let cancelled = false;
 
-  ctx.waitUntil(
-    (async () => {
-      let text = "";
+  async function fail(error: unknown) {
+    console.error("Generation failed", error);
+    await onError(error);
+  }
+
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
       try {
-        for await (const delta of source) {
-          text += delta;
-          write(delta);
+        const { value, done } = await source.next();
+        // The browser left while we waited; cancel() has taken over the rest.
+        if (cancelled) {
+          if (!done) text += value;
+          return;
         }
-        await onDone(text);
+        if (done) {
+          await onDone(text);
+          controller.close();
+          return;
+        }
+        text += value;
+        controller.enqueue(encoder.encode(value));
       } catch (error) {
-        console.error("Generation failed", error);
-        await onError(error);
+        await fail(error);
         // A marker the client can detect after the partial text.
-        write("\n\u0000ERROR");
-      } finally {
-        writer.close().catch(() => {});
+        controller.enqueue(encoder.encode("\n\u0000ERROR"));
+        controller.close();
       }
-    })(),
-  );
+    },
+    cancel() {
+      cancelled = true;
+      ctx.waitUntil(
+        (async () => {
+          try {
+            for await (const delta of source) text += delta;
+            await onDone(text);
+          } catch (error) {
+            await fail(error);
+          }
+        })(),
+      );
+    },
+  });
 
-  return new Response(readable.pipeThrough(new TextEncoderStream()), {
+  return new Response(body, {
     headers: {
       "content-type": "text/plain; charset=utf-8",
       "cache-control": "no-store, no-transform",
