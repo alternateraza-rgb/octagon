@@ -1,0 +1,14 @@
+{
+  "name": "@octacore/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./logo": "./src/logo.tsx",
+    "./brand/*": "./brand/*"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  }
+}
