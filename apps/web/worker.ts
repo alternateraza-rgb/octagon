@@ -1,7 +1,9 @@
-// Worker entry: serves deployed sites straight from KV and hands everything else to Next.
+// Worker entry: serves deployed sites from KV and the streaming AI endpoints directly;
+// everything else goes to Next.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore `.open-next/worker.js` is generated at build time.
 import { default as nextHandler } from "./.open-next/worker.js";
+import { routeStreamingApi } from "./lib/api/streaming";
 import { deployedSlug, serveDeployedSite } from "./lib/deploy/sites";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -12,6 +14,8 @@ export default {
   async fetch(request, env, ctx) {
     const slug = deployedSlug(new URL(request.url), env.SITES_DOMAIN);
     if (slug) return serveDeployedSite(env, slug);
+    const streaming = routeStreamingApi(request, env);
+    if (streaming) return streaming;
     return nextHandler.fetch(request, env, ctx);
   },
 } satisfies ExportedHandler<CloudflareEnv>;
