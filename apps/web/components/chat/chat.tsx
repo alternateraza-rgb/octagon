@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowUp, Check, Copy, Square } from "lucide-react";
-import { readTextStream } from "@/lib/read-stream";
+import { readModelText } from "@/lib/ai/read-events";
 import type { ChatMessage } from "@/lib/chat/store";
 import { Markdown } from "./markdown";
 
@@ -48,6 +48,15 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
     abortRef.current = abort;
     const setReply = (patch: Partial<Message>) => setMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, ...patch } : msg)));
 
+    let reply = "";
+    const save = () =>
+      reply &&
+      idRef.current &&
+      fetch(`/api/chat/${idRef.current}/reply`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: reply }),
+      }).catch(() => {});
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -64,10 +73,16 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
         idRef.current = newId;
         window.history.replaceState(null, "", `/dashboard/chat/${newId}`);
       }
-      const { failed } = await readTextStream(res, (content) => setReply({ content }));
-      if (failed) setReply({ failed: true });
+      reply = await readModelText(res, (content) => {
+        reply = content;
+        setReply({ content });
+      });
+      await save();
     } catch (e) {
-      if (!abort.signal.aborted) {
+      if (abort.signal.aborted) {
+        // Keep what arrived before Stop.
+        await save();
+      } else {
         setReply({ failed: true });
         setError(e instanceof Error ? e.message : "Something went wrong.");
       }

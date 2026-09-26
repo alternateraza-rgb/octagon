@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowUp, Check, Copy, ExternalLink, Monitor, Rocket, Smartphone, Tablet } from "lucide-react";
-import { readTextStream } from "@/lib/read-stream";
+import { readModelText } from "@/lib/ai/read-events";
 import type { Deployment, Site, VersionSummary } from "@/lib/sites/store";
 
 type Device = "desktop" | "tablet" | "mobile";
@@ -53,6 +53,13 @@ export function Builder({
   const building = pending !== null || refreshing;
   const number = (id: string) => versions.findIndex((v) => v.id === id) + 1;
 
+  const save = (body: { instruction?: string; text: string } | { failed: true }) =>
+    fetch(`/api/sites/${site.id}/versions/save`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
   async function generate(instruction?: string) {
     if (building) return;
     setError("");
@@ -69,8 +76,18 @@ export function Builder({
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "Something went wrong.");
       }
-      const { failed } = await readTextStream(res, (code) => setPending((p) => (p ? { ...p, code } : p)));
-      if (failed) throw new Error("The build didn't finish. Try again.");
+      let text: string;
+      try {
+        text = await readModelText(res, (code) => setPending((p) => (p ? { ...p, code } : p)));
+      } catch (e) {
+        await save({ failed: true });
+        throw e;
+      }
+      const saved = await save({ instruction, text });
+      if (!saved.ok) {
+        const body = (await saved.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Couldn't save that build. Try again.");
+      }
       setSelectedId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");

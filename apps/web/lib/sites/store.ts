@@ -65,12 +65,14 @@ export async function listDeployments(db: D1Database, siteId: string) {
 export async function countRecentGenerations(db: D1Database, userId: string) {
   const since = Date.now() - 24 * 60 * 60 * 1000;
   const row = await db
-    .prepare(
-      `select count(*) as n from site_version v join site s on s.id = v.siteId where s.userId = ? and v.createdAt > ?`,
-    )
+    .prepare(`select count(*) as n from generation where userId = ? and createdAt > ?`)
     .bind(userId, since)
     .first<{ n: number }>();
   return row?.n ?? 0;
+}
+
+export async function logGeneration(db: D1Database, userId: string) {
+  await db.prepare(`insert into generation (id, userId, createdAt) values (?, ?, ?)`).bind(crypto.randomUUID(), userId, Date.now()).run();
 }
 
 export async function createSite(db: D1Database, userId: string, prompt: string) {
