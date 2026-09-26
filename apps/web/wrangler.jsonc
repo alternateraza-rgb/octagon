@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "octacore",
   "account_id": "5be08b854a3e045d8267e290ecee5ba6",
-  "main": ".open-next/worker.js",
+  "main": "worker.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -22,9 +22,20 @@
       "migrations_dir": "migrations"
     }
   ],
+  "kv_namespaces": [
+    {
+      // Deployed sites, keyed by slug.
+      "binding": "SITES"
+    }
+  ],
+  // <slug>.octacore.app serves deployed sites (needs a proxied `*` DNS record on the zone).
+  "routes": [{ "pattern": "*.octacore.app/*", "zone_name": "octacore.app" }],
+  "workers_dev": true,
   // OPENAI_API_KEY is a secret: set it in the dashboard (type Secret) or with `wrangler secret put`.
   "vars": {
     "OPENAI_MODEL": "gpt-6-sol",
+    "OPENAI_CHAT_MODEL": "gpt-6-sol",
+    "SITES_DOMAIN": "octacore.app",
     "OPENAI_BASE_URL": "https://api.openai.com/v1"
   },
   "observability": { "enabled": true }

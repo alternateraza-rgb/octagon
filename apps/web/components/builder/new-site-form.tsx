@@ -2,20 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 
 export function NewSiteForm({ initialPrompt = "" }: { initialPrompt?: string }) {
   const router = useRouter();
-  const reduce = useReducedMotion();
   const [prompt, setPrompt] = useState(initialPrompt);
   const [error, setError] = useState("");
-  const [building, setBuilding] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  async function build() {
+  async function create() {
     const value = prompt.trim();
-    if (!value || building) return;
-    setBuilding(true);
+    if (!value || creating) return;
+    setCreating(true);
     setError("");
     const res = await fetch("/api/sites", {
       method: "POST",
@@ -24,22 +22,20 @@ export function NewSiteForm({ initialPrompt = "" }: { initialPrompt?: string }) 
     }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { id?: string; error?: string } | null;
     if (res?.ok && body?.id) {
-      router.push(`/sites/${body.id}`);
+      router.push(`/dashboard/sites/${body.id}?new=1`);
       return;
     }
-    setBuilding(false);
+    setCreating(false);
     setError(body?.error ?? "Something went wrong. Try again.");
-    router.refresh();
   }
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        build();
+        create();
       }}
-      aria-busy={building}
-      className="rounded-[18px] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,.06),0_12px_40px_-8px_rgba(0,0,0,.12)] ring-1 ring-black/5 transition-shadow focus-within:shadow-[0_1px_2px_rgba(0,0,0,.06),0_20px_60px_-10px_rgba(194,65,12,.28)]"
+      className="rounded-[22px] bg-elevated p-3 shadow-soft ring-1 ring-hairline transition-shadow focus-within:shadow-[0_1px_2px_rgba(0,0,0,.06),0_20px_60px_-10px_rgba(194,65,12,.28)]"
     >
       <label htmlFor="site-prompt" className="sr-only">
         Describe the website you want to build
@@ -48,45 +44,32 @@ export function NewSiteForm({ initialPrompt = "" }: { initialPrompt?: string }) 
         id="site-prompt"
         rows={3}
         value={prompt}
-        disabled={building}
+        disabled={creating}
         onChange={(e) => {
           setPrompt(e.target.value);
           setError("");
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            build();
+            create();
           }
         }}
-        placeholder="A bakery in Lisbon that sells sourdough and pastel de nata…"
-        className="block w-full resize-none bg-transparent px-2 pt-1 text-[16px] leading-[1.5] text-[#0f0f0f] placeholder:text-[#8a8a8e] focus:outline-none disabled:opacity-60"
+        placeholder="A sourdough bakery in Lisbon with online pre-orders…"
+        className="block w-full resize-none bg-transparent px-2 pt-1 text-[16px] leading-[1.5] placeholder:text-fg-3 focus:outline-none disabled:opacity-60"
       />
       <div className="mt-2 flex items-center gap-3 pl-2">
-        {building ? (
-          <p role="status" className="flex items-center gap-2 text-[14px] text-fg-2">
-            <motion.span
-              aria-hidden
-              className="size-2 rounded-full bg-octa-600"
-              animate={reduce ? undefined : { opacity: [1, 0.25, 1] }}
-              transition={{ duration: 1.2, repeat: Infinity }}
-            />
-            Designing your site — usually under a minute
+        {error && (
+          <p role="alert" className="text-[13px] text-red-600">
+            {error}
           </p>
-        ) : (
-          error && (
-            <p role="alert" className="text-[13px] text-red-700">
-              {error}
-            </p>
-          )
         )}
         <button
           type="submit"
-          disabled={building || !prompt.trim()}
-          aria-label="Build website"
-          className="ml-auto grid size-10 shrink-0 place-items-center rounded-[10px] bg-octa-600 text-white transition-all hover:bg-octa-500 active:scale-95 disabled:opacity-50"
+          disabled={creating || !prompt.trim()}
+          className="ml-auto flex h-11 items-center gap-2 rounded-full bg-octa-600 pl-5 pr-4 text-[15px] font-medium text-white transition-all hover:bg-octa-500 active:scale-[.98] disabled:bg-fg/10 disabled:text-fg-3"
         >
-          <ArrowUpRight size={20} strokeWidth={2} />
+          {creating ? "Starting…" : "Build website"} <ArrowUp size={16} strokeWidth={2} />
         </button>
       </div>
     </form>

@@ -43,7 +43,7 @@ export function Nav() {
           ))}
         </ul>
         <div className="flex items-center gap-1 sm:gap-3">
-          <Link href="/start" className="hidden px-3 py-2 text-[14px] sm:block">
+          <Link href="/login" className="hidden px-3 py-2 text-[14px] sm:block">
             Log in
           </Link>
           <Link

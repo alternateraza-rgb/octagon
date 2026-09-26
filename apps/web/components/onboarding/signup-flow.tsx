@@ -231,7 +231,7 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
                 </p>
                 {prompt && <p className="mt-6 bg-white p-4 text-[15px] ring-1 ring-black/10">{prompt}</p>}
                 <Link
-                  href={prompt ? `/dashboard?prompt=${encodeURIComponent(prompt)}` : "/dashboard"}
+                  href={prompt ? `/dashboard/sites?prompt=${encodeURIComponent(prompt)}` : "/dashboard"}
                   className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0f0f0f] text-[15px] font-medium text-white transition-colors hover:bg-octa-700"
                 >
                   {prompt ? "Build my site" : "Go to your dashboard"} <ArrowRight size={16} />
