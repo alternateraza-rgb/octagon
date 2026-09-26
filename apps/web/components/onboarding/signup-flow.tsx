@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, ArrowRight, Check, Mail } from "lucide-react";
+import { ArrowRight, Check, Lock, Mail } from "lucide-react";
 import { OctacoreLogo } from "@octacore/ui/logo";
 import { TEMPLATES } from "@/components/templates";
 import { TemplateFrame } from "@/components/templates/frame";
 import { CropMarks } from "@/components/marketing/motion";
+import { authClient } from "@/lib/auth/client";
+import { Field } from "@/components/auth/field";
 
 type Step = "account" | "plan" | "done";
 type Billing = "annual" | "monthly";
@@ -36,18 +38,24 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
   const reduce = useReducedMotion();
   const [step, setStep] = useState<Step>("account");
   const [email, setEmail] = useState("");
-  const [emailError, setEmailError] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [billing, setBilling] = useState<Billing>("annual");
   const [plan, setPlan] = useState<(typeof PLANS)[number]["id"]>("pro");
 
   const template = TEMPLATES.find((t) => t.slug === templateSlug) ?? TEMPLATES[0];
   const Preview = template.Component;
 
-  // TODO: wire to Supabase Auth (OAuth + magic link) once the project keys are configured.
-  function continueWithEmail(e: React.FormEvent) {
+  async function createAccount(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setEmailError("Enter a valid email address");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Enter a valid email address");
+    if (password.length < 8) return setError("Use at least 8 characters for your password");
+    setSubmitting(true);
+    const { error } = await authClient.signUp.email({ email, password, name: email.split("@")[0] });
+    setSubmitting(false);
+    if (error) {
+      setError(error.code?.startsWith("USER_ALREADY_EXISTS") ? "An account with this email already exists. Log in instead." : error.message ?? "Something went wrong. Try again.");
       return;
     }
     setStep("plan");
@@ -82,60 +90,58 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
               <motion.section key="account" {...slide}>
                 <h1 className={`${display} text-[40px] leading-[1] tracking-[-0.04em]`}>Create your account</h1>
                 <p className="mt-3 text-[16px] text-fg-2">Start building websites you can sell today.</p>
-                <div className="mt-8 space-y-3">
-                  <OAuthButton label="Continue with Google" icon={<GoogleIcon />} onClick={() => setStep("plan")} />
-                  <OAuthButton label="Continue with Apple" icon={<AppleIcon />} onClick={() => setStep("plan")} />
-                </div>
-                <div className="my-6 flex items-center gap-3 text-[13px] text-fg-3">
-                  <span className="h-px flex-1 bg-hairline" /> or <span className="h-px flex-1 bg-hairline" />
-                </div>
-                <form onSubmit={continueWithEmail} noValidate>
-                  <label htmlFor="email" className="text-[14px] font-medium">
-                    Email
-                  </label>
-                  <div className="relative mt-2">
-                    <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-3" />
-                    <input
-                      id="email"
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setEmailError("");
-                      }}
-                      placeholder="you@company.com"
-                      aria-invalid={!!emailError}
-                      aria-describedby={emailError ? "email-error" : undefined}
-                      className="h-12 w-full rounded-[10px] bg-white pl-10 pr-3 text-[16px] ring-1 ring-black/10 transition-shadow focus:outline-none focus:ring-2 focus:ring-octa-600"
-                    />
-                  </div>
-                  {emailError && (
-                    <p id="email-error" className="mt-2 text-[13px] text-red-700">
-                      {emailError}
+                <form onSubmit={createAccount} noValidate className="mt-8 space-y-4">
+                  <Field
+                    id="email"
+                    label="Email"
+                    icon={<Mail size={16} />}
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(v) => {
+                      setEmail(v);
+                      setError("");
+                    }}
+                    invalid={!!error}
+                  />
+                  <Field
+                    id="password"
+                    label="Password"
+                    icon={<Lock size={16} />}
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
+                    value={password}
+                    onChange={(v) => {
+                      setPassword(v);
+                      setError("");
+                    }}
+                    invalid={!!error}
+                  />
+                  {error && (
+                    <p id="auth-error" role="alert" className="text-[13px] text-red-700">
+                      {error}
                     </p>
                   )}
-                  <button className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0f0f0f] text-[15px] font-medium text-white transition-colors hover:bg-octa-700">
-                    Continue with email <ArrowRight size={16} />
+                  <button
+                    disabled={submitting}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0f0f0f] text-[15px] font-medium text-white transition-colors hover:bg-octa-700 disabled:opacity-60"
+                  >
+                    {submitting ? "Creating account…" : "Create account"} <ArrowRight size={16} />
                   </button>
                 </form>
                 <p className="mt-6 text-[13px] text-fg-3">
                   Already have an account?{" "}
-                  <button onClick={() => setStep("plan")} className="text-fg underline underline-offset-4">
+                  <Link href="/login" className="text-fg underline underline-offset-4">
                     Log in
-                  </button>
+                  </Link>
                 </p>
               </motion.section>
             )}
 
             {step === "plan" && (
               <motion.section key="plan" {...slide}>
-                <button
-                  onClick={() => setStep("account")}
-                  className="mb-6 flex items-center gap-1.5 text-[14px] text-fg-2 hover:text-fg"
-                >
-                  <ArrowLeft size={14} /> Back
-                </button>
                 <h1 className={`${display} text-[40px] leading-[1] tracking-[-0.04em]`}>Choose your plan</h1>
                 <p className="mt-3 text-[16px] text-fg-2">Pays for itself with one sale. Change or cancel anytime.</p>
 
@@ -224,8 +230,11 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
                   The builder is the next piece we&apos;re shipping. Your idea is saved and will open there automatically.
                 </p>
                 {prompt && <p className="mt-6 bg-white p-4 text-[15px] ring-1 ring-black/10">{prompt}</p>}
-                <Link href="/" className="mt-8 inline-flex items-center gap-1.5 text-[15px] underline underline-offset-4">
-                  <ArrowLeft size={14} /> Back to home
+                <Link
+                  href="/dashboard"
+                  className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0f0f0f] text-[15px] font-medium text-white transition-colors hover:bg-octa-700"
+                >
+                  Go to your dashboard <ArrowRight size={16} />
                 </Link>
               </motion.section>
             )}
@@ -265,36 +274,5 @@ function StepDots({ step }: { step: Step }) {
         <span key={s} className={`h-1.5 rounded-full transition-all ${i <= idx ? "w-6 bg-octa-600" : "w-1.5 bg-black/15"}`} />
       ))}
     </div>
-  );
-}
-
-function OAuthButton({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex h-12 w-full items-center justify-center gap-3 rounded-[10px] bg-white text-[15px] font-medium ring-1 ring-black/10 transition-shadow hover:ring-black/25"
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
-      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 38.2 44 33 44 24c0-1.3-.1-2.4-.4-3.5z" />
-    </svg>
-  );
-}
-
-function AppleIcon() {
-  return (
-    <svg width="16" height="18" viewBox="0 0 814 1000" aria-hidden fill="currentColor">
-      <path d="M788 341c-6 4-108 62-108 190 0 148 130 200 134 202-1 3-21 72-69 142-43 62-88 124-156 124s-86-40-165-40c-77 0-104 41-167 41s-106-58-156-128C44 790 0 671 0 557c0-182 118-279 235-279 62 0 114 41 153 41 37 0 95-43 166-43 27 0 124 2 188 97zM554 169c29-35 50-83 50-131 0-7-1-14-2-19-48 2-104 32-138 72-27 30-52 78-52 127 0 7 1 15 2 17 3 1 8 1 13 1 43 0 97-29 127-67z" />
-    </svg>
   );
 }
