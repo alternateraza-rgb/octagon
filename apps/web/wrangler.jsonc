@@ -15,5 +15,12 @@
       "service": "octacore"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "octacore-db",
+      "migrations_dir": "migrations"
+    }
+  ],
   "observability": { "enabled": true }
 }
