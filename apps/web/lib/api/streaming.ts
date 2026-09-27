@@ -3,10 +3,13 @@
 // parsing the events here cost more CPU than a Worker request is allowed for a full site build.
 // The browser parses the stream and saves the finished result with a second, small request.
 import { createAuth } from "@/lib/auth/auth";
+import { userMessage } from "@/lib/ai/content";
 import { eventStreamResponse, openaiStream } from "@/lib/ai/openai";
 import { addMessage, createConversation, getConversation, listMessages } from "@/lib/chat/store";
-import { CREATE_INSTRUCTIONS, EDIT_INSTRUCTIONS, editInput } from "@/lib/sites/prompts";
+import { CREATE_INSTRUCTIONS, EDIT_INSTRUCTIONS, createInput, editInput } from "@/lib/sites/prompts";
 import { DAILY_GENERATION_LIMIT, countRecentGenerations, getLatestVersion, getSite, logGeneration, setSiteStatus } from "@/lib/sites/store";
+import { parseAttachments } from "@/lib/attachments";
+import { resolveAttachments } from "@/lib/uploads";
 
 const CHAT_INSTRUCTIONS = `You are Octa, the assistant inside Octacore — an app for building, hosting and selling websites to businesses.
 Be genuinely helpful on any topic. When it fits, help with running a web business: finding clients, pricing, pitching, copywriting, SEO and design.
@@ -32,8 +35,11 @@ function failure(error: unknown) {
 async function chat(request: Request, env: CloudflareEnv) {
   const session = await createAuth(env).api.getSession({ headers: request.headers });
   if (!session) return Response.json({ error: "Log in to chat." }, { status: 401 });
-  const { conversationId, message } = (await request.json().catch(() => ({}))) as { conversationId?: unknown; message?: unknown };
-  const text = typeof message === "string" ? message.trim() : "";
+  const body = (await request.json().catch(() => ({}))) as { conversationId?: unknown; message?: unknown; attachments?: unknown };
+  const { conversationId } = body;
+  const attachments = await resolveAttachments(env.DB, session.user.id, body.attachments);
+  let text = typeof body.message === "string" ? body.message.trim() : "";
+  if (!text && attachments.length) text = attachments.length === 1 ? "Take a look at this file." : "Take a look at these files.";
   if (!text) return Response.json({ error: "Write a message first." }, { status: 400 });
   if (text.length > 20_000) return Response.json({ error: "That message is too long." }, { status: 400 });
 
@@ -44,8 +50,10 @@ async function chat(request: Request, env: CloudflareEnv) {
   } else {
     id = await createConversation(env.DB, session.user.id, text);
   }
-  await addMessage(env.DB, id, "user", text);
-  const history = (await listMessages(env.DB, id)).slice(-HISTORY).map(({ role, content }) => ({ role, content }));
+  await addMessage(env.DB, id, "user", text, attachments);
+  const history = (await listMessages(env.DB, id))
+    .slice(-HISTORY)
+    .map((m) => (m.role === "user" ? userMessage(m.content, m.attachments) : { role: m.role, content: m.content }));
 
   try {
     const body = await openaiStream(env, { model: env.OPENAI_CHAT_MODEL, instructions: CHAT_INSTRUCTIONS, input: history });
@@ -60,7 +68,7 @@ async function chat(request: Request, env: CloudflareEnv) {
 async function startVersion(request: Request, env: CloudflareEnv, id: string) {
   const session = await createAuth(env).api.getSession({ headers: request.headers });
   if (!session) return Response.json({ error: "Log in to build a website." }, { status: 401 });
-  const { instruction } = (await request.json().catch(() => ({}))) as { instruction?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { instruction?: unknown; attachments?: unknown };
 
   const site = await getSite(env.DB, id, session.user.id);
   if (!site) return Response.json({ error: "Site not found." }, { status: 404 });
@@ -71,12 +79,16 @@ async function startVersion(request: Request, env: CloudflareEnv, id: string) {
   const latest = await getLatestVersion(env.DB, id);
   let spec;
   if (latest) {
-    const change = typeof instruction === "string" ? instruction.trim() : "";
+    const attachments = await resolveAttachments(env.DB, session.user.id, body.attachments);
+    const change = typeof body.instruction === "string" ? body.instruction.trim() : "";
     if (!change) return Response.json({ error: "Describe the change you want." }, { status: 400 });
     if (change.length > 2000) return Response.json({ error: "Keep your request under 2,000 characters." }, { status: 400 });
-    spec = { model: env.OPENAI_MODEL, instructions: EDIT_INSTRUCTIONS, input: editInput(latest.html, change) };
+    const input = [userMessage(editInput(latest.html, change, attachments), attachments)];
+    spec = { model: env.OPENAI_MODEL, instructions: EDIT_INSTRUCTIONS, input };
   } else {
-    spec = { model: env.OPENAI_MODEL, instructions: CREATE_INSTRUCTIONS, input: site.prompt };
+    const attachments = parseAttachments(site.attachments);
+    const input = [userMessage(createInput(site.prompt, attachments), attachments)];
+    spec = { model: env.OPENAI_MODEL, instructions: CREATE_INSTRUCTIONS, input };
   }
 
   await logGeneration(env.DB, session.user.id);

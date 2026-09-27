@@ -6,6 +6,9 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowUp, Check, Copy, ExternalLink, Monitor, Rocket, Smartphone, Tablet } from "lucide-react";
 import { readModelText } from "@/lib/ai/read-events";
+import { parseAttachments, type Attachment } from "@/lib/attachments";
+import { AttachButton, AttachmentList, PendingTray } from "@/components/uploads/attachments";
+import { useUploads } from "@/components/uploads/use-uploads";
 import type { Deployment, Site, VersionSummary } from "@/lib/sites/store";
 
 type Device = "desktop" | "tablet" | "mobile";
@@ -43,7 +46,8 @@ export function Builder({
   const [device, setDevice] = useState<Device>("desktop");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [pending, setPending] = useState<{ instruction: string; code: string } | null>(null);
+  const uploads = useUploads();
+  const [pending, setPending] = useState<{ instruction: string; attachments: Attachment[]; code: string } | null>(null);
   const [error, setError] = useState("");
   const [deploying, setDeploying] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -55,7 +59,7 @@ export function Builder({
   const building = pending !== null || refreshing;
   const number = (id: string) => versions.findIndex((v) => v.id === id) + 1;
 
-  const save = (body: { instruction?: string; text: string } | { failed: true }) =>
+  const save = (body: { instruction?: string; text: string; attachments?: string[] } | { failed: true }) =>
     fetch(`/api/sites/${site.id}/versions/save`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -65,14 +69,18 @@ export function Builder({
   async function generate(instruction?: string) {
     if (building) return;
     setError("");
-    setPending({ instruction: instruction ?? site.prompt, code: "" });
+    // Edits carry the files picked for them; the first build uses the ones given with the prompt.
+    const attachments = instruction === undefined ? parseAttachments(site.attachments) : uploads.attachments;
+    const ids = attachments.map((a) => a.id);
+    setPending({ instruction: instruction ?? site.prompt, attachments, code: "" });
     setInput("");
+    uploads.clear();
     setMobileView("preview");
     try {
       const res = await fetch(`/api/sites/${site.id}/versions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ instruction }),
+        body: JSON.stringify({ instruction, attachments: ids }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -85,7 +93,7 @@ export function Builder({
         await save({ failed: true });
         throw e;
       }
-      const saved = await save({ instruction, text });
+      const saved = await save({ instruction, text, attachments: ids });
       if (!saved.ok) {
         const body = (await saved.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "Couldn't save that build. Try again.");
@@ -97,6 +105,12 @@ export function Builder({
       setPending(null);
       startRefresh(() => router.refresh());
     }
+  }
+
+  const canApply = !!latest && !building && !uploads.uploading && (!!input.trim() || uploads.attachments.length > 0);
+  function applyChange() {
+    if (!canApply) return;
+    generate(input.trim() || (uploads.attachments.length === 1 ? "Add this file to the site." : "Add these files to the site."));
   }
 
   async function deploy(versionId?: string) {
@@ -170,6 +184,7 @@ export function Builder({
               <div ref={timelineRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
                 {versions.map((v, i) => (
                   <div key={v.id} className="space-y-2">
+                    <AttachmentList items={v.attachments} />
                     <p className="ml-auto w-fit max-w-[90%] whitespace-pre-wrap break-words rounded-[18px] bg-fg/[.07] px-4 py-2.5 text-[15px] leading-[1.45]">
                       {v.instruction}
                     </p>
@@ -191,6 +206,7 @@ export function Builder({
                 ))}
                 {pending && (
                   <div className="space-y-2">
+                    <AttachmentList items={pending.attachments} />
                     <p className="ml-auto w-fit max-w-[90%] whitespace-pre-wrap break-words rounded-[18px] bg-fg/[.07] px-4 py-2.5 text-[15px] leading-[1.45]">
                       {pending.instruction}
                     </p>
@@ -214,36 +230,51 @@ export function Builder({
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (input.trim() && latest) generate(input.trim());
+                    applyChange();
                   }}
-                  className="flex items-end gap-2 rounded-[18px] bg-elevated p-1.5 shadow-soft ring-1 ring-hairline"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (e.dataTransfer.files.length && latest && !building) uploads.add(e.dataTransfer.files);
+                  }}
+                  className="rounded-[18px] bg-elevated p-1.5 shadow-soft ring-1 ring-hairline"
                 >
-                  <label htmlFor="change-input" className="sr-only">
-                    Describe a change
-                  </label>
-                  <textarea
-                    id="change-input"
-                    rows={1}
-                    value={input}
-                    disabled={!latest || building}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                        e.preventDefault();
-                        if (input.trim() && latest) generate(input.trim());
-                      }
-                    }}
-                    placeholder={latest ? "Describe a change…" : "Your site is being built…"}
-                    className="field-sizing-content max-h-[160px] min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-[1.45] placeholder:text-fg-3 focus:outline-none disabled:opacity-60"
-                  />
-                  <button
-                    type="submit"
-                    aria-label="Apply change"
-                    disabled={!input.trim() || !latest || building}
-                    className="grid size-11 shrink-0 place-items-center rounded-full bg-octa-600 text-white transition-all hover:bg-octa-500 active:scale-95 disabled:bg-fg/10 disabled:text-fg-3"
-                  >
-                    <ArrowUp size={18} strokeWidth={2} />
-                  </button>
+                  <PendingTray files={uploads.files} onRemove={uploads.remove} />
+                  <div className="flex items-end gap-1">
+                    <AttachButton onFiles={uploads.add} disabled={!latest || building} />
+                    <label htmlFor="change-input" className="sr-only">
+                      Describe a change
+                    </label>
+                    <textarea
+                      id="change-input"
+                      rows={1}
+                      value={input}
+                      disabled={!latest || building}
+                      onChange={(e) => setInput(e.target.value)}
+                      onPaste={(e) => {
+                        if (e.clipboardData.files.length) {
+                          e.preventDefault();
+                          uploads.add(e.clipboardData.files);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          applyChange();
+                        }
+                      }}
+                      placeholder={latest ? "Describe a change, or attach a logo…" : "Your site is being built…"}
+                      className="field-sizing-content max-h-[160px] min-h-11 flex-1 resize-none bg-transparent px-1 py-2.5 text-[15px] leading-[1.45] placeholder:text-fg-3 focus:outline-none disabled:opacity-60"
+                    />
+                    <button
+                      type="submit"
+                      aria-label="Apply change"
+                      disabled={!canApply}
+                      className="grid size-11 shrink-0 place-items-center rounded-full bg-octa-600 text-white transition-all hover:bg-octa-500 active:scale-95 disabled:bg-fg/10 disabled:text-fg-3"
+                    >
+                      <ArrowUp size={18} strokeWidth={2} />
+                    </button>
+                  </div>
                 </form>
               </div>
             </>

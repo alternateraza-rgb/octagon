@@ -7,8 +7,10 @@ import { ArrowUp, Check, Copy, Square } from "lucide-react";
 import { readModelText } from "@/lib/ai/read-events";
 import type { ChatMessage } from "@/lib/chat/store";
 import { Markdown } from "./markdown";
+import { AttachButton, AttachmentList, PendingTray } from "@/components/uploads/attachments";
+import { useUploads } from "@/components/uploads/use-uploads";
 
-type Message = Pick<ChatMessage, "role" | "content"> & { id: string; failed?: boolean };
+type Message = Pick<ChatMessage, "role" | "content"> & { id: string; failed?: boolean; attachments?: ChatMessage["attachments"] };
 
 const SUGGESTIONS = [
   "Write a cold email to a dentist whose website looks dated",
@@ -22,6 +24,7 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
   const reduce = useReducedMotion();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
+  const uploads = useUploads();
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
   const idRef = useRef(conversationId);
@@ -37,12 +40,14 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
 
   async function send(text: string) {
     const value = text.trim();
-    if (!value || streaming) return;
+    const attachments = uploads.attachments;
+    if ((!value && !attachments.length) || streaming || uploads.uploading) return;
     setInput("");
+    uploads.clear();
     setError("");
     stickRef.current = true;
     const replyId = crypto.randomUUID();
-    setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", content: value }, { id: replyId, role: "assistant", content: "" }]);
+    setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", content: value, attachments }, { id: replyId, role: "assistant", content: "" }]);
     setStreaming(true);
     const abort = new AbortController();
     abortRef.current = abort;
@@ -61,7 +66,7 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ conversationId: idRef.current, message: value }),
+        body: JSON.stringify({ conversationId: idRef.current, message: value, attachments: attachments.map((a) => a.id) }),
         signal: abort.signal,
       });
       if (!res.ok) {
@@ -135,7 +140,8 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
           <div className="mx-auto max-w-[760px] space-y-8 px-5 py-10">
             {messages.map((m) =>
               m.role === "user" ? (
-                <div key={m.id} className="flex justify-end">
+                <div key={m.id} className="flex flex-col items-end gap-2">
+                  <AttachmentList items={m.attachments ?? []} />
                   <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-[18px] bg-fg/[.07] px-4 py-2.5 text-[16px] leading-[1.5]">{m.content}</p>
                 </div>
               ) : (
@@ -157,44 +163,59 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
             e.preventDefault();
             send(input);
           }}
-          className="mx-auto flex max-w-[760px] items-end gap-2 rounded-[22px] bg-elevated p-2 shadow-soft ring-1 ring-hairline transition-shadow focus-within:shadow-[0_1px_2px_rgba(0,0,0,.06),0_20px_60px_-10px_rgba(194,65,12,.25)]"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files.length) uploads.add(e.dataTransfer.files);
+          }}
+          className="mx-auto max-w-[760px] rounded-[22px] bg-elevated p-2 shadow-soft ring-1 ring-hairline transition-shadow focus-within:shadow-[0_1px_2px_rgba(0,0,0,.06),0_20px_60px_-10px_rgba(194,65,12,.25)]"
         >
-          <label htmlFor="chat-input" className="sr-only">
-            Message Octa
-          </label>
-          <textarea
-            id="chat-input"
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                send(input);
-              }
-            }}
-            placeholder="Message Octa"
-            className="field-sizing-content max-h-[200px] min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[16px] leading-[1.5] placeholder:text-fg-3 focus:outline-none"
-          />
-          {streaming ? (
-            <button
-              type="button"
-              aria-label="Stop"
-              onClick={() => abortRef.current?.abort()}
-              className="grid size-11 shrink-0 place-items-center rounded-full bg-fg text-canvas transition-transform active:scale-95"
-            >
-              <Square size={14} fill="currentColor" />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              aria-label="Send"
-              disabled={!input.trim()}
-              className="grid size-11 shrink-0 place-items-center rounded-full bg-octa-600 text-white transition-all hover:bg-octa-500 active:scale-95 disabled:bg-fg/10 disabled:text-fg-3"
-            >
-              <ArrowUp size={20} strokeWidth={2} />
-            </button>
-          )}
+          <PendingTray files={uploads.files} onRemove={uploads.remove} />
+          <div className="flex items-end gap-1">
+            <AttachButton onFiles={uploads.add} disabled={streaming} />
+            <label htmlFor="chat-input" className="sr-only">
+              Message Octa
+            </label>
+            <textarea
+              id="chat-input"
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPaste={(e) => {
+                if (e.clipboardData.files.length) {
+                  e.preventDefault();
+                  uploads.add(e.clipboardData.files);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  send(input);
+                }
+              }}
+              placeholder="Message Octa"
+              className="field-sizing-content max-h-[200px] min-h-11 flex-1 resize-none bg-transparent px-1 py-2.5 text-[16px] leading-[1.5] placeholder:text-fg-3 focus:outline-none"
+            />
+            {streaming ? (
+              <button
+                type="button"
+                aria-label="Stop"
+                onClick={() => abortRef.current?.abort()}
+                className="grid size-11 shrink-0 place-items-center rounded-full bg-fg text-canvas transition-transform active:scale-95"
+              >
+                <Square size={14} fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                aria-label="Send"
+                disabled={(!input.trim() && !uploads.attachments.length) || uploads.uploading}
+                className="grid size-11 shrink-0 place-items-center rounded-full bg-octa-600 text-white transition-all hover:bg-octa-500 active:scale-95 disabled:bg-fg/10 disabled:text-fg-3"
+              >
+                <ArrowUp size={20} strokeWidth={2} />
+              </button>
+            )}
+          </div>
         </form>
         <p className="mx-auto mt-2 max-w-[760px] text-center text-[12px] text-fg-3">Octa can make mistakes. Check anything important.</p>
       </div>
