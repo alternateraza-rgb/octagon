@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { OctacoreMark } from "@octacore/ui/logo";
 import { TEMPLATES, getTemplate } from "@/components/templates";
+import { templateFontVariables } from "@/lib/template-fonts";
 
 export function generateStaticParams() {
   return TEMPLATES.map((t) => ({ slug: t.slug }));
@@ -18,7 +19,7 @@ export default async function TemplatePage({ params }: PageProps<"/templates/[sl
   if (!template) notFound();
   const { Component } = template;
   return (
-    <div data-theme="light">
+    <div data-theme="light" className={templateFontVariables}>
       <div className="material sticky top-0 z-50 flex h-12 items-center justify-between border-b border-hairline px-4 text-[13px]">
         <Link href="/#templates" className="flex items-center gap-2 text-fg-2 hover:text-fg">
           <ArrowLeft size={14} /> <OctacoreMark size={18} /> Templates

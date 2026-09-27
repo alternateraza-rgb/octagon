@@ -19,8 +19,32 @@ body {
   background: rgb(234 88 12 / 0.22);
 }
 
+/* Loading placeholders: a soft sweep across hairline-tinted blocks. */
+@utility shimmer {
+  background: linear-gradient(
+    100deg,
+    color-mix(in oklab, var(--fg) 5%, transparent) 30%,
+    color-mix(in oklab, var(--fg) 10%, transparent) 50%,
+    color-mix(in oklab, var(--fg) 5%, transparent) 70%
+  );
+  background-size: 300% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  .shimmer {
+    animation: none;
   }
 }

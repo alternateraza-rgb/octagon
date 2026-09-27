@@ -1,6 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getSession } from "@/lib/auth/server";
-import { createSite } from "@/lib/sites/store";
+import { createSite, listSites } from "@/lib/sites/store";
 import { resolveAttachments } from "@/lib/uploads";
 
 // Creates the site record; the builder then streams its first version from /versions.
@@ -15,4 +15,13 @@ export async function POST(request: Request) {
   const { env } = await getCloudflareContext({ async: true });
   const files = await resolveAttachments(env.DB, session.user.id, attachments);
   return Response.json({ id: await createSite(env.DB, session.user.id, text, files) });
+}
+
+// Lightweight list for search.
+export async function GET() {
+  const session = await getSession();
+  if (!session) return Response.json([], { status: 401 });
+  const { env } = await getCloudflareContext({ async: true });
+  const sites = await listSites(env.DB, session.user.id);
+  return Response.json(sites.map(({ id, title, slug }) => ({ id, title, slug })));
 }

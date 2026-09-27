@@ -10,6 +10,7 @@ import { TemplateFrame } from "@/components/templates/frame";
 import { CropMarks } from "@/components/marketing/motion";
 import { authClient } from "@/lib/auth/client";
 import { Field } from "@/components/auth/field";
+import { templateFontVariables } from "@/lib/template-fonts";
 
 type Step = "account" | "plan" | "done";
 type Billing = "annual" | "monthly";
@@ -69,7 +70,7 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
   };
 
   return (
-    <div data-theme="light" className="grid min-h-dvh bg-canvas text-fg lg:grid-cols-[1fr_1fr]">
+    <div data-theme="light" className={`${templateFontVariables} grid min-h-dvh bg-canvas text-fg lg:grid-cols-[1fr_1fr]`}>
       <div className="dots flex flex-col px-5 py-6 sm:px-10">
         <header className="flex items-center justify-between">
           <Link href="/" aria-label="Octacore home">

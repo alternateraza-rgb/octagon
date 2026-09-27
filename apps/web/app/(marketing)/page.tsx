@@ -11,11 +11,12 @@ import {
   Story,
   Templates,
 } from "@/components/marketing/sections";
+import { templateFontVariables } from "@/lib/template-fonts";
 
 export default function LandingPage() {
   // The marketing site is light-only, like Base44 — the app itself follows the system theme.
   return (
-    <div data-theme="light" className="bg-canvas text-fg">
+    <div data-theme="light" className={`${templateFontVariables} bg-canvas text-fg`}>
       <Nav />
       <main>
         <Hero />

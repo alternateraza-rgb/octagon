@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowUp, Check, Copy, Square } from "lucide-react";
@@ -9,6 +8,7 @@ import type { ChatMessage } from "@/lib/chat/store";
 import { Markdown } from "./markdown";
 import { AttachButton, AttachmentList, PendingTray } from "@/components/uploads/attachments";
 import { useUploads } from "@/components/uploads/use-uploads";
+import { useWorkspace } from "@/components/app/workspace";
 
 type Message = Pick<ChatMessage, "role" | "content"> & { id: string; failed?: boolean; attachments?: ChatMessage["attachments"] };
 
@@ -20,7 +20,7 @@ const SUGGESTIONS = [
 ];
 
 export function Chat({ conversationId, initialMessages = [] }: { conversationId?: string; initialMessages?: ChatMessage[] }) {
-  const router = useRouter();
+  const { conversations, upsertConversation } = useWorkspace();
   const reduce = useReducedMotion();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -94,7 +94,10 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
     } finally {
       setStreaming(false);
       abortRef.current = null;
-      router.refresh();
+      if (idRef.current) {
+        const existing = conversations.find((c) => c.id === idRef.current);
+        upsertConversation({ id: idRef.current, title: existing?.title ?? value.replace(/\s+/g, " ").slice(0, 60), updatedAt: Date.now() });
+      }
     }
   }
 
