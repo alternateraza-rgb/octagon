@@ -37,7 +37,7 @@ export function Paywall() {
           </p>
         </motion.div>
         <div className="mt-10">
-          <PlanCards onChoose={(plan) => openBilling({ plan })} />
+          <PlanCards onChoose={(plan, interval) => openBilling({ plan, interval })} />
         </div>
         <p className="mt-6 text-[14px] text-fg-3">
           Secure payments by Whop · Cancel anytime ·{" "}

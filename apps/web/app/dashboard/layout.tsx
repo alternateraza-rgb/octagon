@@ -24,7 +24,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       conversations={conversations}
       theme={theme === "light" || theme === "dark" ? (theme as Theme) : "system"}
       collapsed={jar.get("sidebar")?.value === "collapsed"}
-      billing={{ plan: access.plan, active: access.active, comped: access.comped, pausesAt: access.pausesAt, builds }}
+      billing={{ plan: access.plan, interval: access.interval, active: access.active, comped: access.comped, pausesAt: access.pausesAt, builds }}
     >
       {children}
     </AppShell>

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { Conversation } from "@/lib/chat/store";
-import type { PlanId } from "@/lib/billing/plans";
+import type { Interval, PlanId } from "@/lib/billing/plans";
 import { onUpgrade, type BillingStatus } from "@/lib/billing/client";
 import { BillingDialog } from "@/components/billing/billing-dialog";
 
@@ -11,6 +11,7 @@ export type Theme = "system" | "light" | "dark";
 export type Me = { name: string; email: string };
 export type BillingSummary = {
   plan: PlanId | null;
+  interval: Interval;
   active: boolean;
   comped: boolean;
   pausesAt: number | null;
@@ -19,6 +20,7 @@ export type BillingSummary = {
 
 export const summarize = ({ access, usage }: BillingStatus): BillingSummary => ({
   plan: access.plan,
+  interval: access.interval,
   active: access.active,
   comped: access.comped,
   pausesAt: access.pausesAt,
@@ -36,7 +38,7 @@ type Workspace = {
   billing: BillingSummary;
   setBilling: (billing: BillingSummary) => void;
   // Opens plan selection and checkout, optionally straight into one plan's checkout.
-  openBilling: (options?: { plan?: PlanId; message?: string }) => void;
+  openBilling: (options?: { plan?: PlanId; interval?: Interval; message?: string }) => void;
 };
 
 const WorkspaceContext = createContext<Workspace | null>(null);
@@ -64,7 +66,7 @@ export function WorkspaceProvider({
   const [conversations, setConversations] = useState(initialConversations);
   const [theme, setThemeState] = useState(initialTheme);
   const [billing, setBilling] = useState(initialBilling);
-  const [dialog, setDialog] = useState<{ plan?: PlanId; message?: string } | null>(null);
+  const [dialog, setDialog] = useState<{ plan?: PlanId; interval?: Interval; message?: string } | null>(null);
 
   // Any request refused for the plan's limits opens the upgrade dialog with the reason.
   useEffect(() => onUpgrade((notice) => setDialog({ message: notice.error })), []);
@@ -90,9 +92,9 @@ export function WorkspaceProvider({
       {children}
       <BillingDialog
         open={!!dialog}
-        plan={dialog?.plan}
+        plan={dialog?.plan ? { plan: dialog.plan, interval: dialog.interval ?? "month" } : null}
         message={dialog?.message}
-        current={billing.active ? billing.plan : null}
+        current={billing.active && billing.plan ? { plan: billing.plan, interval: billing.interval } : null}
         theme={theme}
         onClose={() => setDialog(null)}
         onActivated={(status) => {

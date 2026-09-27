@@ -1,5 +1,5 @@
 // Minimal Whop REST client: the calls billing needs.
-import type { Plan } from "./plans";
+import { priceFor, type Interval, type Plan } from "./plans";
 
 const API = "https://api.whop.com/api/v1";
 
@@ -66,12 +66,18 @@ export async function getAccountId(env: CloudflareEnv) {
 
 // A checkout session for one Octacore plan. The plan is described inline rather than by id: Whop
 // finds the "Octacore" product by its external identifier (creating it the first time) and reuses
-// the monthly plan with the same price, so nothing has to be set up by hand in Whop. The metadata
+// the plan with the same price and period, so nothing has to be set up by hand in Whop. The metadata
 // carries over to the payment and the membership, which is how the webhook knows who paid.
 export async function createCheckout(
   env: CloudflareEnv,
-  { plan, metadata, redirectUrl }: { plan: Plan; metadata: Record<string, string>; redirectUrl: string },
+  {
+    plan,
+    interval,
+    metadata,
+    redirectUrl,
+  }: { plan: Plan; interval: Interval; metadata: Record<string, string>; redirectUrl: string },
 ) {
+  const { charged } = priceFor(plan, interval);
   return whop<{ id: string; purchase_url: string; plan?: { id: string } | null }>(env, "/checkout_configurations", {
     method: "POST",
     body: {
@@ -80,11 +86,11 @@ export async function createCheckout(
         company_id: await getAccountId(env),
         currency: "usd",
         plan_type: "renewal",
-        billing_period: 30,
-        // Charged every month, starting at purchase; initial_price would be an extra one-off fee.
-        renewal_price: plan.price,
+        billing_period: interval === "year" ? 365 : 30,
+        // Charged every period, starting at purchase; initial_price would be an extra one-off fee.
+        renewal_price: charged,
         initial_price: 0,
-        title: `Octacore ${plan.name}`,
+        title: interval === "year" ? `Octacore ${plan.name} (yearly)` : `Octacore ${plan.name}`,
         visibility: "hidden",
         product: { external_identifier: "octacore", title: "Octacore", visibility: "hidden" },
       },

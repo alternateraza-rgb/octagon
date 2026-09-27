@@ -13,7 +13,7 @@ import { Field } from "@/components/auth/field";
 import { templateFontVariables } from "@/lib/template-fonts";
 import { PlanCards } from "@/components/billing/plan-cards";
 import { BillingDialog } from "@/components/billing/billing-dialog";
-import type { PlanId } from "@/lib/billing/plans";
+import type { Interval, PlanId } from "@/lib/billing/plans";
 
 type Step = "account" | "plan" | "done";
 
@@ -26,7 +26,7 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [checkout, setCheckout] = useState<PlanId | null>(null);
+  const [checkout, setCheckout] = useState<{ plan: PlanId; interval: Interval } | null>(null);
 
   const template = TEMPLATES.find((t) => t.slug === templateSlug) ?? TEMPLATES[0];
   const Preview = template.Component;
@@ -133,10 +133,10 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
                 <h1 className={`${display} text-[40px] leading-[1] tracking-[-0.04em]`}>Choose your plan</h1>
                 <p className="mt-3 text-[16px] text-fg-2">Pays for itself with one sale. Cancel anytime.</p>
                 <div className="mt-7">
-                  <PlanCards compact onChoose={setCheckout} />
+                  <PlanCards compact onChoose={(plan, interval) => setCheckout({ plan, interval })} />
                 </div>
                 <p className="mt-4 flex items-center gap-1.5 text-[13px] text-fg-3">
-                  <Lock size={12} /> Secure payments by Whop. Billed monthly.
+                  <Lock size={12} /> Secure payments by Whop. Cancel anytime.
                 </p>
               </motion.section>
             )}
