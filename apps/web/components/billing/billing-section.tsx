@@ -19,6 +19,7 @@ const METERS: { id: Meter; label: string; format?: (n: number) => string }[] = [
   { id: "chat", label: "Chat messages" },
   { id: "sites", label: "Live websites" },
   { id: "storage", label: "Upload storage", format: formatBytes },
+  { id: "leads", label: "Lead Finder leads" },
 ];
 
 // Settings › Plan and billing: the current plan, this period's usage, and the way to change or manage it.
@@ -152,8 +153,8 @@ export function Billing({ status }: { status: BillingStatus }) {
       </div>
       <p className="mt-4 text-[13px] text-fg-3">
         {access.periodEnd && !access.comped
-          ? `Builds and chat reset ${date.format(access.periodEnd)}. `
-          : "Builds and chat reset each month. "}
+          ? `Builds, chat and leads reset ${date.format(access.periodEnd)}. `
+          : "Builds, chat and leads reset each month. "}
         {!access.comped &&
           "Update your card, download receipts or cancel in Manage billing. Switching plans starts a new billing month."}
       </p>

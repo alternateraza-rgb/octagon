@@ -22,14 +22,14 @@ export type BillingStatus = {
     active: boolean;
     comped: boolean;
     status: string;
-    limits: Record<"builds" | "chat" | "sites" | "storage", number> | null;
+    limits: Record<"builds" | "chat" | "sites" | "storage" | "leads", number> | null;
     periodStart: number;
     periodEnd: number | null;
     cancelAtPeriodEnd: boolean;
     manageUrl: string | null;
     pausesAt: number | null;
   };
-  usage: Record<"builds" | "chat" | "sites" | "storage", number>;
+  usage: Record<"builds" | "chat" | "sites" | "storage" | "leads", number>;
 };
 
 export async function fetchBillingStatus(): Promise<BillingStatus | null> {

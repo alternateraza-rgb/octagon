@@ -260,7 +260,7 @@ export function Templates() {
 function LeadsVisual() {
   const leads = [
     ["Marco's Pizzeria", "No website"],
-    ["Bright Smile Dental", "Outdated site"],
+    ["Bright Smile Dental", "Facebook only"],
     ["Peak Performance Gym", "No website"],
   ];
   return (
@@ -296,9 +296,9 @@ function OutreachVisual() {
 }
 
 const AGENTS = [
-  { t: "Lead Finder", b: "Finds local businesses with no website — or a bad one — in any niche and city, with owner contact details.", Visual: LeadsVisual },
-  { t: "Demo Builder", b: "Builds a tailored demo site for every lead using their real name, services and photos, before you ever call.", Visual: DemoVisual },
-  { t: "Outreach", b: "Sends personal emails with their new site attached, follows up on schedule and books the call for you.", Visual: OutreachVisual },
+  { t: "Lead Finder", b: "Finds local businesses on Google with no website in any niche and city across the US and Canada, ranked and ready to call.", Visual: LeadsVisual },
+  { t: "Demo Builder", b: "Builds a site for any lead in one click, with their real name, phone, hours and Google reviews, before you ever call.", Visual: DemoVisual },
+  { t: "Outreach", soon: true, b: "Writes the first email with their new site attached and follows up on schedule.", Visual: OutreachVisual },
 ];
 
 export function Agents() {
@@ -310,7 +310,7 @@ export function Agents() {
         </Reveal>
         <RevealText
           as="p"
-          text="Octacore doesn't stop when you publish. Agents find the businesses, build their demo and write the first email."
+          text="Octacore doesn't stop when you publish. Agents find the businesses that need a website and build theirs before you call."
           className={`${display} mt-3 max-w-[900px] text-[26px] leading-[1.2] tracking-[-0.02em] sm:text-[36px]`}
         />
       </div>
@@ -318,10 +318,13 @@ export function Agents() {
         <Photo id="photo-1600093463592-8e36ae95ef56" alt="" w={1440} className="!absolute inset-0 scale-110 blur-2xl" />
         <div className="absolute inset-0 bg-octa-800/25" />
         <div className="relative mx-auto grid max-w-[1280px] gap-4 md:grid-cols-3">
-          {AGENTS.map(({ t, b, Visual }, i) => (
+          {AGENTS.map(({ t, b, soon, Visual }, i) => (
             <Reveal key={t} delay={i * 0.08}>
               <div className="group flex h-full flex-col bg-[#f9f8f6] p-6 transition-transform duration-500 ease-spring hover:-translate-y-1.5">
-                <p className={`${display} text-[26px] leading-[1.05] tracking-[-0.02em]`}>{t}</p>
+                <p className={`${display} flex items-center gap-2 text-[26px] leading-[1.05] tracking-[-0.02em]`}>
+                  {t}
+                  {soon && <span className="rounded-full bg-black/[.06] px-2 py-0.5 font-sans text-[11px] tracking-normal text-fg-2">Soon</span>}
+                </p>
                 <div className="my-6">
                   <Visual />
                 </div>
@@ -395,7 +398,7 @@ const FAQS = [
   ["Who owns the website after I sell it?", "The buyer. Once they pay (or you mark the site as sold), they get an email invite to claim ownership. You can stay on as a collaborator if they want."],
   ["How do I get paid?", "Connect a payout account once. Buyers pay through a secure checkout link and the money goes straight to you, minus a small platform fee."],
   ["Where are the websites hosted?", "On Octacore's global infrastructure, with SSL, a free octacore.site address and support for custom domains."],
-  ["What do Octa Agents do?", "They find businesses that need a website, build a tailored demo for each one and send personalised outreach — so you spend your time closing, not prospecting."],
+  ["What do Octa Agents do?", "They find local businesses on Google that don't have a website yet, rank them, and build each one a site with its real details and reviews — so you spend your time closing, not prospecting. Automated outreach is coming soon."],
   ["Can I bring my own clients?", "Of course. Agents are optional, and you can transfer a site without using Octacore checkout."],
 ];
 

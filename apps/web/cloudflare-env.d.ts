@@ -15,6 +15,7 @@ interface __BaseEnv_CloudflareEnv {
 	BETTER_AUTH_SECRET: string;
 	OPENAI_API_KEY: string;
 	PEXELS_API_KEY: string;
+	GOOGLE_PLACES_API_KEY: string;
 	RESEND_API_KEY: string;
 	WHOP_API_KEY: string;
 	WHOP_WEBHOOK_SECRET: string;
@@ -32,7 +33,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_MODEL" | "OPENAI_CHAT_MODEL" | "OPENAI_FAST_MODEL" | "SITES_DOMAIN" | "OPENAI_BASE_URL" | "COMPED_EMAILS" | "BETTER_AUTH_SECRET" | "OPENAI_API_KEY" | "PEXELS_API_KEY" | "RESEND_API_KEY" | "WHOP_API_KEY" | "WHOP_WEBHOOK_SECRET" | "WHOP_API_BASE_URL">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_MODEL" | "OPENAI_CHAT_MODEL" | "OPENAI_FAST_MODEL" | "SITES_DOMAIN" | "OPENAI_BASE_URL" | "COMPED_EMAILS" | "BETTER_AUTH_SECRET" | "OPENAI_API_KEY" | "PEXELS_API_KEY" | "GOOGLE_PLACES_API_KEY" | "RESEND_API_KEY" | "WHOP_API_KEY" | "WHOP_WEBHOOK_SECRET" | "WHOP_API_BASE_URL">> {}
 }
 
 // Begin runtime types
