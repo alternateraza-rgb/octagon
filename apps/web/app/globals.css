@@ -31,6 +31,16 @@ body {
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
+/* "Thinking…" — a highlight sweeping through muted text. */
+@utility shimmer-text {
+  background: linear-gradient(90deg, var(--fg-3) 0%, var(--fg-3) 40%, var(--fg) 50%, var(--fg-3) 60%, var(--fg-3) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 2s linear infinite;
+}
+
 @keyframes shimmer {
   from {
     background-position: 100% 0;
@@ -44,7 +54,8 @@ body {
   html {
     scroll-behavior: auto;
   }
-  .shimmer {
+  .shimmer,
+  .shimmer-text {
     animation: none;
   }
 }
