@@ -43,10 +43,6 @@
     "OPENAI_FAST_MODEL": "gpt-6-luna",
     "SITES_DOMAIN": "octacore.app",
     "OPENAI_BASE_URL": "https://api.openai.com/v1",
-    // Whop plan ids (plan_…) for each Octacore plan. WHOP_API_KEY and WHOP_WEBHOOK_SECRET are secrets.
-    "WHOP_PLAN_STARTER": "",
-    "WHOP_PLAN_PRO": "",
-    "WHOP_PLAN_AGENCY": "",
     // Accounts that always get Agency limits without paying (comma-separated).
     "COMPED_EMAILS": "fortnitekhan111@gmail.com"
   },

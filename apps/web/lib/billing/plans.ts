@@ -58,19 +58,19 @@ export const PLANS: Plan[] = [
 
 export const planById = (id: string | null | undefined) => PLANS.find((p) => p.id === id) ?? null;
 
-// Whop plan ids live in wrangler vars; they aren't secret.
-export function whopPlanId(env: CloudflareEnv, plan: PlanId) {
-  const ids: Record<PlanId, string | undefined> = {
-    starter: env.WHOP_PLAN_STARTER,
-    pro: env.WHOP_PLAN_PRO,
-    agency: env.WHOP_PLAN_AGENCY,
-  };
-  return ids[plan] || null;
+// Whop plans are created on the fly by checkout (see lib/billing/whop.ts); each one's id is
+// recorded against the Octacore plan it sells, so webhooks can map memberships back.
+export async function planForWhopPlan(db: D1Database, whopPlan: string | undefined): Promise<PlanId | null> {
+  if (!whopPlan) return null;
+  const row = await db.prepare(`select plan from whop_plan where whopPlanId = ?`).bind(whopPlan).first<{ plan: string }>();
+  return planById(row?.plan)?.id ?? null;
 }
 
-export function planForWhopPlan(env: CloudflareEnv, whopPlan: string | undefined): PlanId | null {
-  if (!whopPlan) return null;
-  return PLANS.find((p) => whopPlanId(env, p.id) === whopPlan)?.id ?? null;
+export function rememberWhopPlan(db: D1Database, whopPlan: string, plan: PlanId) {
+  return db
+    .prepare(`insert into whop_plan (whopPlanId, plan) values (?, ?) on conflict (whopPlanId) do update set plan = excluded.plan`)
+    .bind(whopPlan, plan)
+    .run();
 }
 
 // Abuse brake on top of the monthly caps: no account needs more than this in a day.

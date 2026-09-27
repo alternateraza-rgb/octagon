@@ -1,4 +1,6 @@
-// Minimal Whop REST client: the three calls billing needs.
+// Minimal Whop REST client: the calls billing needs.
+import type { Plan } from "./plans";
+
 const API = "https://api.whop.com/api/v1";
 
 export type WhopMembership = {
@@ -27,15 +29,46 @@ async function whop<T>(env: CloudflareEnv, path: string, init: { method?: string
   return res.json() as Promise<T>;
 }
 
-// A checkout session for one plan. The metadata carries over to the payment and the membership,
-// which is how the webhook knows which Octacore account paid.
-export function createCheckout(
+// The Whop business the API key belongs to (biz_…), needed to create plans. It never changes, so
+// it's kept in memory and in KV after the first lookup.
+let accountId: string | null = null;
+export async function getAccountId(env: CloudflareEnv) {
+  if (accountId) return accountId;
+  accountId = await env.SITES.get("billing:account");
+  if (!accountId) {
+    accountId = (await whop<{ id: string }>(env, "/accounts/me")).id;
+    await env.SITES.put("billing:account", accountId);
+  }
+  return accountId;
+}
+
+// A checkout session for one Octacore plan. The plan is described inline rather than by id: Whop
+// finds the "Octacore" product by its external identifier (creating it the first time) and reuses
+// the monthly plan with the same price, so nothing has to be set up by hand in Whop. The metadata
+// carries over to the payment and the membership, which is how the webhook knows who paid.
+export async function createCheckout(
   env: CloudflareEnv,
-  { planId, metadata, redirectUrl }: { planId: string; metadata: Record<string, string>; redirectUrl: string },
+  { plan, metadata, redirectUrl }: { plan: Plan; metadata: Record<string, string>; redirectUrl: string },
 ) {
-  return whop<{ id: string; purchase_url: string }>(env, "/checkout_configurations", {
+  return whop<{ id: string; purchase_url: string; plan?: { id: string } | null }>(env, "/checkout_configurations", {
     method: "POST",
-    body: { mode: "payment", plan_id: planId, metadata, redirect_url: redirectUrl },
+    body: {
+      mode: "payment",
+      plan: {
+        company_id: await getAccountId(env),
+        currency: "usd",
+        plan_type: "renewal",
+        billing_period: 30,
+        // Charged every month, starting at purchase; initial_price would be an extra one-off fee.
+        renewal_price: plan.price,
+        initial_price: 0,
+        title: `Octacore ${plan.name}`,
+        visibility: "hidden",
+        product: { external_identifier: "octacore", title: "Octacore", visibility: "hidden" },
+      },
+      metadata,
+      redirect_url: redirectUrl,
+    },
   });
 }
 

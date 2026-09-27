@@ -15,6 +15,12 @@ create table "subscription" (
 );
 create unique index "subscription_whopMembershipId_idx" on "subscription" ("whopMembershipId");
 
+-- Whop plans Octacore created through checkout, and the Octacore plan each one sells.
+create table "whop_plan" (
+  "whopPlanId" text not null primary key,
+  "plan" text not null
+);
+
 -- Webhook message ids already handled, so retries are processed once.
 create table "billing_event" (
   "id" text not null primary key,

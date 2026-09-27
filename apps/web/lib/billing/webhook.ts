@@ -152,7 +152,7 @@ async function syncMembership(
   const userId = await resolveUser(env, m);
   if (!userId) return console.warn("Whop membership for an unknown account", m.id);
   const metaPlan = typeof m.metadata?.plan === "string" ? m.metadata.plan : null;
-  const plan: PlanId | null = planForWhopPlan(env, m.plan?.id) ?? planById(metaPlan)?.id ?? null;
+  const plan: PlanId | null = (await planForWhopPlan(env.DB, m.plan?.id)) ?? planById(metaPlan)?.id ?? null;
   if (!plan) return console.warn("Whop membership for a plan Octacore doesn't sell", m.id, m.plan?.id);
 
   const existing = await getSubscription(env.DB, userId);
