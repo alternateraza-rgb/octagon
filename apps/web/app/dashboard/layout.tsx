@@ -10,6 +10,8 @@ import { countUsage, getAccess } from "@/lib/billing/entitlements";
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const session = await getSession();
   if (!session) redirect("/login?next=/dashboard");
+  // Clients who bought a site have their own, simpler page.
+  if ((session.user as { role?: string }).role === "owner") redirect("/owner");
   const [{ env }, jar] = await Promise.all([getCloudflareContext({ async: true }), cookies()]);
   const [conversations, access] = await Promise.all([listConversations(env.DB, session.user.id), getAccess(env, session.user)]);
   const builds = access.limits

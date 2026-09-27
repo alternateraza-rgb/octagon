@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, Check, Copy, ExternalLink, Loader2, Monitor, Rocket, Smartphone, Tablet } from "lucide-react";
+import { ArrowLeft, Check, Copy, ExternalLink, Loader2, Monitor, Rocket, Smartphone, Tablet, Tag } from "lucide-react";
 import { readModelText } from "@/lib/ai/read-events";
 import { parseAttachments, type Attachment } from "@/lib/attachments";
 import { buildProgress } from "@/lib/sites/build-progress";
@@ -16,6 +16,7 @@ import { useUploads } from "@/components/uploads/use-uploads";
 import { BuilderTimeline, type Pending } from "./builder-chat";
 import { BuildStage, EditOverlay } from "./build-progress";
 import { noticeUpgrade } from "@/lib/billing/client";
+import { SellSheet } from "@/components/sales/sell-sheet";
 
 type Device = "desktop" | "tablet" | "mobile";
 const DEVICES: { id: Device; label: string; icon: typeof Monitor; width: string }[] = [
@@ -61,6 +62,7 @@ export function Builder({
   const [error, setError] = useState("");
   const [deploying, setDeploying] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selling, setSelling] = useState(false);
   const started = useRef(false);
 
   const latest = versions.at(-1) ?? null;
@@ -311,6 +313,15 @@ export function Builder({
                   <ExternalLink size={17} strokeWidth={1.5} />
                 </a>
               )}
+              {latest && !firstBuild && (
+                <button
+                  onClick={() => setSelling(true)}
+                  className="flex h-11 items-center gap-2 rounded-full bg-fg/[.06] px-4 text-[15px] font-medium transition-colors hover:bg-fg/[.1]"
+                >
+                  <Tag size={16} strokeWidth={1.75} />
+                  <span className="hidden sm:inline">Sell</span>
+                </button>
+              )}
               <AnimatePresence mode="popLayout" initial={false}>
                 {liveUrl && selected?.id === liveVersion && !deploying ? (
                   <motion.a
@@ -380,6 +391,7 @@ export function Builder({
           </div>
         </section>
       </div>
+      <SellSheet open={selling} siteId={site.id} siteTitle={site.title ?? "Your site"} onClose={() => setSelling(false)} />
     </div>
   );
 }

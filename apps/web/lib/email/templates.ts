@@ -171,3 +171,176 @@ export function sitesPausedEmail({ to, name, count }: { to: string; name: string
     text: `Hi ${name.split(" ")[0] || "there"},\n\n${sites} paused because your Octacore plan ended 14 days ago. Renew to bring them back at the same addresses: ${ORIGIN}/dashboard/settings#billing\n\n— Octacore`,
   };
 }
+
+// ——— Selling sites ———
+
+const price = (cents: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: cents % 100 ? 2 : 0 }).format(cents / 100);
+const priceLine = (priceCents: number, monthlyCents: number | null) =>
+  monthlyCents ? `${price(priceCents)}, then ${price(monthlyCents)}/month for hosting` : price(priceCents);
+const quote = (message: string) =>
+  `<span style="display:block;margin-top:20px;padding:16px 18px;border-radius:16px;background:#f9f8f6;color:#0f0f0f;font-style:italic">${escape(message).replace(/\n/g, "<br>")}</span>`;
+
+// To the client: the seller built them a website and here it is.
+export function saleInviteEmail({
+  to,
+  buyerName,
+  sellerName,
+  siteTitle,
+  message,
+  priceCents,
+  monthlyCents,
+  url,
+}: {
+  to: string;
+  buyerName: string;
+  sellerName: string;
+  siteTitle: string;
+  message: string | null;
+  priceCents: number;
+  monthlyCents: number | null;
+  url: string;
+}): Email {
+  const seller = escape(sellerName);
+  return {
+    to,
+    subject: `${sellerName} built you a new website`,
+    html: layout({
+      preview: `Take a look at ${siteTitle} — it's ready to go live.`,
+      title: `Your new website is ready`,
+      body: `Hi ${first(buyerName)}, <span style="color:#0f0f0f;font-weight:600">${seller}</span> designed a website for <span style="color:#0f0f0f;font-weight:600">${escape(siteTitle)}</span>. Take a look — it's live-ready, and it's yours the moment you buy it.${message ? quote(message) : ""}`,
+      button: { label: "See your website", url },
+      after: `Price: <span style="color:#0f0f0f">${escape(priceLine(priceCents, monthlyCents))}</span>. Payments are handled securely by Whop.`,
+      reason: `You're getting this because ${seller} sent you a website through Octacore.`,
+    }),
+    text: `Hi ${buyerName.split(" ")[0] || "there"},\n\n${sellerName} designed a website for ${siteTitle}.${message ? `\n\n"${message}"` : ""}\n\nSee it: ${url}\nPrice: ${priceLine(priceCents, monthlyCents)}\n\n— Octacore`,
+  };
+}
+
+// To the seller: their client opened the invite.
+export function saleViewedEmail({ to, name, buyerName, siteTitle }: { to: string; name: string; buyerName: string; siteTitle: string }): Email {
+  return {
+    to,
+    subject: `${buyerName} is looking at ${siteTitle}`,
+    html: layout({
+      preview: "Your client just opened their website. Good time to follow up.",
+      title: `${escape(buyerName)} opened the site`,
+      body: `Hi ${first(name)}, ${escape(buyerName)} just opened the website you sent for <span style="color:#0f0f0f;font-weight:600">${escape(siteTitle)}</span>. A quick call now is a great way to close.`,
+      button: { label: "See your sales", url: `${ORIGIN}/dashboard/sales` },
+      reason: "You're getting this because you sent a site to a client through Octacore.",
+    }),
+    text: `Hi ${name.split(" ")[0] || "there"},\n\n${buyerName} just opened the website you sent for ${siteTitle}.\n\n${ORIGIN}/dashboard/sales\n\n— Octacore`,
+  };
+}
+
+// To the seller: paid.
+export function saleSoldEmail({
+  to,
+  name,
+  buyerName,
+  siteTitle,
+  earnedCents,
+}: {
+  to: string;
+  name: string;
+  buyerName: string;
+  siteTitle: string;
+  earnedCents: number;
+}): Email {
+  return {
+    to,
+    subject: `Sold: ${siteTitle}`,
+    html: layout({
+      preview: `${buyerName} bought ${siteTitle}. ${price(earnedCents)} is on its way to you.`,
+      title: "You made a sale",
+      body: `Hi ${first(name)}, ${escape(buyerName)} just bought <span style="color:#0f0f0f;font-weight:600">${escape(siteTitle)}</span>. <span style="color:#0f0f0f;font-weight:600">${price(earnedCents)}</span> is heading to your Whop balance, after Octacore's 10%.<br><br>The site is theirs now, and you can keep editing it for them from your dashboard.`,
+      button: { label: "See your sales", url: `${ORIGIN}/dashboard/sales` },
+      after: "Whop's processing fees come out of your share. Withdraw anytime from Settings › Payouts.",
+      reason: "You're getting this because a client paid for a site you sold through Octacore.",
+    }),
+    text: `Hi ${name.split(" ")[0] || "there"},\n\n${buyerName} bought ${siteTitle}. ${price(earnedCents)} is heading to your Whop balance after Octacore's 10%.\n\n${ORIGIN}/dashboard/sales\n\n— Octacore`,
+  };
+}
+
+// To the client, with a one-click sign-in link: the site is theirs.
+export function ownerWelcomeEmail({
+  to,
+  buyerName,
+  sellerName,
+  siteTitle,
+  url,
+  needsHosting,
+}: {
+  to: string;
+  buyerName: string;
+  sellerName: string;
+  siteTitle: string;
+  url: string;
+  needsHosting: boolean;
+}): Email {
+  return {
+    to,
+    subject: `You own ${siteTitle}`,
+    html: layout({
+      preview: "Your website is yours. Here's how to see it any time.",
+      title: `${escape(siteTitle)} is yours`,
+      body: `Hi ${first(buyerName)}, thanks for your purchase. Your website is now registered to you. Open your owner page to see it live, manage billing, or ask ${escape(sellerName)} for changes.${
+        needsHosting ? `<br><br><span style="color:#0f0f0f;font-weight:600">One step left:</span> start hosting to put the site online.` : ""
+      }`,
+      button: { label: "Open your website", url },
+      after: "This button signs you in — no password needed. It works for 3 days; after that, sign in at octacore.app/owner with this email.",
+      reason: "You're getting this because you bought a website built with Octacore.",
+    }),
+    text: `Hi ${buyerName.split(" ")[0] || "there"},\n\n${siteTitle} is yours. Open your owner page (signs you in): ${url}\n\n— Octacore`,
+  };
+}
+
+// To an owner who asked to sign in again.
+export function ownerSignInEmail({ to, url }: { to: string; url: string }): Email {
+  return {
+    to,
+    subject: "Your Octacore sign-in link",
+    html: layout({
+      preview: "One click to see your website.",
+      title: "Sign in to your website",
+      body: "Click below to open your owner page. No password needed.",
+      button: { label: "Sign in", url },
+      after: "The link works for 3 days. If you didn't ask for it, you can ignore this email.",
+      reason: "You're getting this because someone asked to sign in with this email at octacore.app.",
+    }),
+    text: `Sign in to your website: ${url}\n\nIf you didn't ask for this, ignore this email.\n\n— Octacore`,
+  };
+}
+
+// To the seller: their client wants something changed.
+export function changeRequestEmail({
+  to,
+  name,
+  buyerName,
+  buyerEmail,
+  siteTitle,
+  request,
+  siteId,
+}: {
+  to: string;
+  name: string;
+  buyerName: string;
+  buyerEmail: string;
+  siteTitle: string;
+  request: string;
+  siteId: string;
+}): Email {
+  return {
+    to,
+    subject: `Change request for ${siteTitle}`,
+    html: layout({
+      preview: `${buyerName}: ${request.slice(0, 80)}`,
+      title: "Your client asked for a change",
+      body: `Hi ${first(name)}, ${escape(buyerName)} (<a href="mailto:${escape(buyerEmail)}" style="color:#c2410c">${escape(buyerEmail)}</a>) asked for a change to <span style="color:#0f0f0f;font-weight:600">${escape(siteTitle)}</span>:${quote(request)}`,
+      button: { label: "Open in the builder", url: `${ORIGIN}/dashboard/sites/${siteId}` },
+      after: "Reply to your client directly by email.",
+      reason: "You're getting this because a client you sold a site to sent a request through Octacore.",
+    }),
+    text: `Hi ${name.split(" ")[0] || "there"},\n\n${buyerName} (${buyerEmail}) asked for a change to ${siteTitle}:\n\n"${request}"\n\n${ORIGIN}/dashboard/sites/${siteId}\n\n— Octacore`,
+  };
+}

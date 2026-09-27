@@ -65,6 +65,40 @@ export async function publish(env: CloudflareEnv, slug: string, html: string) {
   await env.SITES.put(key(slug), html);
 }
 
+// Puts a version live at the site's address, claiming an address on the first deploy (D1's unique
+// index settles races). Returns the slug, or null when no address could be reserved.
+export async function deployVersion(
+  env: CloudflareEnv,
+  site: { id: string; slug: string | null; title: string | null },
+  versionId: string,
+  html: string,
+) {
+  let slug = site.slug;
+  for (let attempt = 0; !slug && attempt < 3; attempt++) {
+    const candidate = await pickSlug(env.DB, site.title);
+    try {
+      await env.DB.prepare(`update site set slug = ? where id = ? and slug is null`).bind(candidate, site.id).run();
+      slug = candidate;
+    } catch {
+      // Someone else took it between the check and the update; pick again.
+    }
+  }
+  if (!slug) return null;
+
+  await publish(env, slug, html);
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare(`update site set deployedVersionId = ?, pausedAt = null, updatedAt = ? where id = ?`).bind(versionId, now, site.id),
+    env.DB.prepare(`insert into deployment (id, siteId, versionId, createdAt) values (?, ?, ?, ?)`).bind(
+      crypto.randomUUID(),
+      site.id,
+      versionId,
+      now,
+    ),
+  ]);
+  return slug;
+}
+
 export async function unpublish(env: CloudflareEnv, slug: string) {
   await env.SITES.delete(key(slug));
 }

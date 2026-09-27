@@ -1,7 +1,9 @@
 import { betterAuth } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
+import { magicLink } from "better-auth/plugins";
 import { sendEmail } from "@/lib/email/send";
-import { passwordChangedEmail, resetPasswordEmail, welcomeEmail } from "@/lib/email/templates";
+import { ownerSignInEmail, ownerWelcomeEmail, passwordChangedEmail, resetPasswordEmail, welcomeEmail } from "@/lib/email/templates";
+import { getSaleView } from "@/lib/sales/store";
 import { hashPassword, verifyPassword } from "./password";
 
 // Removes what a deleted account left outside D1 (its rows cascade): live sites and uploaded files.
@@ -21,6 +23,13 @@ export function createAuth(env: CloudflareEnv) {
   return betterAuth({
     database: env.DB,
     secret: env.BETTER_AUTH_SECRET,
+    // Links in emails use the host the request came from; emails sent outside a request (a Whop
+    // webhook sending a buyer their sign-in link) use octacore.app.
+    baseURL: {
+      allowedHosts: ["octacore.app", "www.octacore.app", "octacore.fortnitekhan111.workers.dev", "localhost:*"],
+      fallback: "https://octacore.app",
+      protocol: "auto",
+    },
     trustedOrigins: [
       "https://octacore.app",
       "https://www.octacore.app",
@@ -41,6 +50,8 @@ export function createAuth(env: CloudflareEnv) {
       },
     },
     user: {
+      // 'builder' for Octacore's users; 'owner' for clients who bought a site and only manage it.
+      additionalFields: { role: { type: "string", defaultValue: "builder", input: false } },
       deleteUser: {
         enabled: true,
         beforeDelete: (user) => removeUserFiles(env, user.id),
@@ -55,6 +66,30 @@ export function createAuth(env: CloudflareEnv) {
         },
       },
     },
+    plugins: [
+      // Clients who bought a site sign in with a link sent to their email. Only existing accounts
+      // (created when they pay) can sign in this way.
+      magicLink({
+        disableSignUp: true,
+        expiresIn: 3 * 24 * 60 * 60,
+        sendMagicLink: async ({ email, url, metadata }) => {
+          const sale = typeof metadata?.saleId === "string" ? await getSaleView(env.DB, metadata.saleId) : null;
+          await sendEmail(
+            env,
+            sale && sale.buyerEmail.toLowerCase() === email.toLowerCase()
+              ? ownerWelcomeEmail({
+                  to: email,
+                  buyerName: sale.buyerName,
+                  sellerName: sale.sellerName,
+                  siteTitle: sale.siteTitle ?? "Your website",
+                  url,
+                  needsHosting: !!sale.monthlyCents && sale.hostingStatus !== "active",
+                })
+              : ownerSignInEmail({ to: email, url }),
+          );
+        },
+      }),
+    ],
     hooks: {
       // Let people know when their password is changed from settings (resets are covered above).
       after: createAuthMiddleware(async (ctx) => {

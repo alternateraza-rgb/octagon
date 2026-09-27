@@ -6,6 +6,8 @@ import { ACTIVE, GRACE_DAYS, getSubscription } from "./entitlements";
 import { planById, planForWhopPlan, type PlanId } from "./plans";
 import { resumeSites } from "./site-access";
 import { cancelMembership, getMembership, type WhopMembership } from "./whop";
+import { activateHosting, completeSitePayment, endHosting } from "@/lib/sales/fulfil";
+import { getSaleByMembership, getSaleView, type SaleView } from "@/lib/sales/store";
 
 const TOLERANCE_SECONDS = 5 * 60;
 
@@ -93,6 +95,9 @@ function safeEqual(a: string, b: string) {
 
 async function dispatch(env: CloudflareEnv, ctx: ExecutionContext, event: WhopEvent) {
   const data = event.data ?? {};
+  // Payments for sites sold through Octacore (on sellers' connected accounts) have their own flow.
+  const sale = await saleForEvent(env, event.type, data);
+  if (sale) return handleSaleEvent(env, event.type, data, sale);
   switch (event.type) {
     case "membership.activated":
       return syncMembership(env, ctx, data as WhopMembership, { activated: true });
@@ -117,6 +122,39 @@ async function dispatch(env: CloudflareEnv, ctx: ExecutionContext, event: WhopEv
       }
       return;
     }
+  }
+}
+
+// The sale an event belongs to: the saleId our checkout attached (payments and memberships inherit
+// it), or the hosting membership we already recorded.
+async function saleForEvent(env: CloudflareEnv, type: string, data: Record<string, unknown>) {
+  const metadata = (data.metadata ?? null) as Record<string, unknown> | null;
+  if (typeof metadata?.saleId === "string") return getSaleView(env.DB, metadata.saleId);
+  const membershipId = type.startsWith("membership.") ? data.id : (data.membership as { id?: string } | undefined)?.id;
+  return typeof membershipId === "string" ? getSaleByMembership(env.DB, membershipId) : null;
+}
+
+async function handleSaleEvent(env: CloudflareEnv, type: string, data: Record<string, unknown>, sale: SaleView) {
+  const metadata = (data.metadata ?? null) as Record<string, unknown> | null;
+  const membership = type.startsWith("membership.") ? (data as WhopMembership) : null;
+  const hosting = metadata?.kind === "hosting" || (!!membership && membership.id === sale.hostingMembershipId);
+  switch (type) {
+    case "payment.succeeded": {
+      if (!hosting) return completeSitePayment(env, sale);
+      const paid = (data.membership ?? null) as { id: string } | null;
+      return activateHosting(env, sale, paid);
+    }
+    case "membership.activated":
+      if (hosting && membership) return activateHosting(env, sale, membership);
+      return;
+    case "membership.cancel_at_period_end_changed":
+      if (hosting && membership?.manage_url) {
+        await env.DB.prepare(`update sale set manageUrl = ?, updatedAt = ? where id = ?`).bind(membership.manage_url, Date.now(), sale.id).run();
+      }
+      return;
+    case "membership.deactivated":
+      if (hosting) return endHosting(env, sale);
+      return;
   }
 }
 

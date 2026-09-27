@@ -105,7 +105,11 @@ export function countUsage(db: D1Database, userId: string, meter: Meter, since: 
     case "sites":
       return count(
         db
-          .prepare(`select count(*) as n from site where userId = ? and deployedVersionId is not null and pausedAt is null`)
+          // Sold sites whose client pays for hosting don't take one of the seller's live sites.
+          .prepare(
+            `select count(*) as n from site s where s.userId = ? and s.deployedVersionId is not null and s.pausedAt is null
+               and not exists (select 1 from sale where sale.id = s.saleId and sale.hostingStatus = 'active')`,
+          )
           .bind(userId),
       );
     case "storage":

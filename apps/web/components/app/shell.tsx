@@ -18,6 +18,7 @@ import {
   Settings,
   Search,
   SquarePen,
+  Tag,
   Sun,
   Trash2,
 } from "lucide-react";
@@ -38,6 +39,7 @@ const NAV = [
     match: (p: string) => p === "/dashboard" || p.startsWith("/dashboard/chat"),
   },
   { href: "/dashboard/sites", label: "Websites", icon: Globe, match: (p: string) => p.startsWith("/dashboard/sites") },
+  { href: "/dashboard/sales", label: "Sales", icon: Tag, match: (p: string) => p.startsWith("/dashboard/sales") },
   { href: "/dashboard/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/dashboard/agents"), soon: true },
   { href: "/dashboard/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/dashboard/settings") },
 ];
