@@ -12,7 +12,14 @@ export type SiteSummary = {
 import { parseAttachments, type Attachment } from "@/lib/attachments";
 
 export type Site = SiteSummary & { userId: string; attachments: string | null };
-export type VersionSummary = { id: string; instruction: string; attachments: Attachment[]; createdAt: number };
+export type VersionSummary = {
+  id: string;
+  instruction: string;
+  attachments: Attachment[];
+  summary: string | null;
+  suggestions: string[];
+  createdAt: number;
+};
 export type Deployment = { id: string; versionId: string; createdAt: number };
 
 // Caps OpenAI spend per account until billing is wired. Edits count too.
@@ -35,10 +42,16 @@ export function getSite(db: D1Database, id: string, userId: string) {
 
 export async function listVersions(db: D1Database, siteId: string) {
   const { results } = await db
-    .prepare(`select id, instruction, attachments, createdAt from site_version where siteId = ? order by createdAt asc`)
+    .prepare(
+      `select id, instruction, attachments, summary, suggestions, createdAt from site_version where siteId = ? order by createdAt asc`,
+    )
     .bind(siteId)
-    .all<Omit<VersionSummary, "attachments"> & { attachments: string | null }>();
-  return results.map((v) => ({ ...v, attachments: parseAttachments(v.attachments) }));
+    .all<Omit<VersionSummary, "attachments" | "suggestions"> & { attachments: string | null; suggestions: string | null }>();
+  return results.map((v) => ({
+    ...v,
+    attachments: parseAttachments(v.attachments),
+    suggestions: v.suggestions ? (JSON.parse(v.suggestions) as string[]) : [],
+  }));
 }
 
 export async function getVersionHtml(db: D1Database, versionId: string, userId: string) {
@@ -74,14 +87,19 @@ export async function countRecentGenerations(db: D1Database, userId: string) {
 }
 
 export async function logGeneration(db: D1Database, userId: string) {
-  await db.prepare(`insert into generation (id, userId, createdAt) values (?, ?, ?)`).bind(crypto.randomUUID(), userId, Date.now()).run();
+  await db
+    .prepare(`insert into generation (id, userId, createdAt) values (?, ?, ?)`)
+    .bind(crypto.randomUUID(), userId, Date.now())
+    .run();
 }
 
 export async function createSite(db: D1Database, userId: string, prompt: string, attachments: Attachment[] = []) {
   const id = crypto.randomUUID();
   const now = Date.now();
   await db
-    .prepare(`insert into site (id, userId, prompt, attachments, status, createdAt, updatedAt) values (?, ?, ?, ?, 'generating', ?, ?)`)
+    .prepare(
+      `insert into site (id, userId, prompt, attachments, status, createdAt, updatedAt) values (?, ?, ?, ?, 'generating', ?, ?)`,
+    )
     .bind(id, userId, prompt, attachments.length ? JSON.stringify(attachments) : null, now, now)
     .run();
   return id;
@@ -98,13 +116,25 @@ export async function addVersion(
   html: string,
   title: string | null,
   attachments: Attachment[] = [],
+  note: { summary: string | null; next: string[] } = { summary: null, next: [] },
 ) {
   const id = crypto.randomUUID();
   const now = Date.now();
   await db.batch([
     db
-      .prepare(`insert into site_version (id, siteId, instruction, attachments, html, createdAt) values (?, ?, ?, ?, ?, ?)`)
-      .bind(id, siteId, instruction, attachments.length ? JSON.stringify(attachments) : null, html, now),
+      .prepare(
+        `insert into site_version (id, siteId, instruction, attachments, summary, suggestions, html, createdAt) values (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        id,
+        siteId,
+        instruction,
+        attachments.length ? JSON.stringify(attachments) : null,
+        note.summary,
+        note.next.length ? JSON.stringify(note.next) : null,
+        html,
+        now,
+      ),
     db
       .prepare(`update site set status = 'ready', title = coalesce(?, title), updatedAt = ? where id = ?`)
       .bind(title, now, siteId),
