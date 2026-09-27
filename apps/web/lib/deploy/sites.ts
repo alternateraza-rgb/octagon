@@ -5,19 +5,60 @@ export function siteUrl(env: CloudflareEnv, slug: string) {
   return `https://${slug}.${env.SITES_DOMAIN}`;
 }
 
-export function makeSlug(title: string | null) {
-  const base = (title ?? "site")
+// Subdomains that belong to Octacore itself.
+const RESERVED = new Set([
+  "www", "api", "app", "admin", "mail", "email", "dashboard", "s", "img", "static", "assets", "cdn",
+  "blog", "docs", "help", "support", "status", "billing", "login", "signup", "auth", "dev", "staging",
+]);
+
+// When the plain name is taken: pakeeza-core, pakeeza-studio, … then pakeeza-2 … then random.
+const SUFFIXES = ["core", "studio", "hq", "co", "online", "site"];
+
+export function slugify(text: string) {
+  return text
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/['’]/g, "")
-    .split(/\s[—–|·-]\s/)[0]
+    .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40)
     .replace(/-+$/, "");
-  const suffix = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
-  return `${base || "site"}-${suffix}`;
+}
+
+// The business name from a title like "Pakeeza | Custom South Asian Wedding Attire".
+export function slugBase(title: string | null) {
+  const name = (title ?? "").split(/\s[—–|·-]\s|:\s|,/)[0];
+  const base = slugify(name);
+  return base.length >= 3 ? base : slugify(title ?? "") || "site";
+}
+
+export function slugProblem(slug: string) {
+  if (slug.length < 3 || slug.length > 40) return "Use 3 to 40 characters.";
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug)) return "Use lowercase letters, numbers and dashes, starting and ending with a letter or number.";
+  if (RESERVED.has(slug)) return "That address is reserved.";
+  return null;
+}
+
+function slugCandidates(base: string) {
+  const random = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+  const trimmed = base.slice(0, 32).replace(/-+$/, "");
+  return [
+    ...(slugProblem(base) ? [] : [base]),
+    ...SUFFIXES.map((s) => `${trimmed}-${s}`),
+    ...Array.from({ length: 8 }, (_, i) => `${trimmed}-${i + 2}`),
+    `${trimmed}-${random}`,
+  ].filter((c) => !slugProblem(c));
+}
+
+// Picks the first free address for a site, in order of preference.
+export async function pickSlug(db: D1Database, title: string | null) {
+  const candidates = slugCandidates(slugBase(title));
+  const placeholders = candidates.map(() => "?").join(",");
+  const { results } = await db.prepare(`select slug from site where slug in (${placeholders})`).bind(...candidates).all<{ slug: string }>();
+  const taken = new Set(results.map((r) => r.slug));
+  return candidates.find((c) => !taken.has(c)) ?? candidates.at(-1)!;
 }
 
 export async function publish(env: CloudflareEnv, slug: string, html: string) {
@@ -27,8 +68,6 @@ export async function publish(env: CloudflareEnv, slug: string, html: string) {
 export async function unpublish(env: CloudflareEnv, slug: string) {
   await env.SITES.delete(key(slug));
 }
-
-const RESERVED = new Set(["www", "api", "app", "admin", "mail", "dashboard"]);
 
 // Returns the slug when a request is for a deployed site:
 // https://<slug>.octacore.app or https://octacore.app/s/<slug>

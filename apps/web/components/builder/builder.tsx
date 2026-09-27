@@ -23,6 +23,7 @@ export function Builder({
   versions,
   deployments,
   liveUrl,
+  sitesDomain,
   autoStart,
   stalled,
 }: {
@@ -30,6 +31,7 @@ export function Builder({
   versions: VersionSummary[];
   deployments: Deployment[];
   liveUrl: string | null;
+  sitesDomain: string;
   autoStart: boolean;
   stalled: boolean;
 }) {
@@ -270,6 +272,12 @@ export function Builder({
                       <ExternalLink size={15} strokeWidth={1.5} /> Visit
                     </a>
                   </div>
+                  <AddressEditor
+                    siteId={site.id}
+                    slug={site.slug!}
+                    domain={sitesDomain}
+                    onSaved={() => startRefresh(() => router.refresh())}
+                  />
                 </div>
               ) : (
                 <p className="px-1 text-[15px] text-fg-2">Deploy your site to get a link you can share with anyone.</p>
@@ -419,6 +427,89 @@ function EmptyState({ site, stalled, onRetry }: { site: Site; stalled: boolean; 
         Try again
       </button>
     </div>
+  );
+}
+
+function AddressEditor({ siteId, slug, domain, onSaved }: { siteId: string; slug: string; domain: string; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(slug);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    const res = await fetch(`/api/sites/${siteId}/address`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ slug: value }),
+    }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { slug?: string; error?: string } | null;
+    setSaving(false);
+    if (!res?.ok) return setError(body?.error ?? "Couldn't change the address. Try again.");
+    setValue(body?.slug ?? value);
+    setEditing(false);
+    onSaved();
+  }
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => {
+          setValue(slug);
+          setEditing(true);
+        }}
+        className="mt-3 h-9 rounded-full px-1 text-[13px] font-medium text-octa-600 hover:text-octa-500"
+      >
+        Change address ›
+      </button>
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+      className="mt-4 border-t border-hairline pt-4"
+    >
+      <label htmlFor="site-address" className="text-[13px] font-medium">
+        Address
+      </label>
+      <div className="mt-2 flex h-11 items-center rounded-[12px] bg-canvas px-3 text-[15px] ring-1 ring-hairline focus-within:ring-2 focus-within:ring-octa-600">
+        <input
+          id="site-address"
+          value={value}
+          autoFocus
+          autoCapitalize="off"
+          spellCheck={false}
+          onChange={(e) => {
+            setValue(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""));
+            setError("");
+          }}
+          aria-invalid={!!error}
+          aria-describedby={error ? "address-error" : undefined}
+          className="min-w-0 flex-1 bg-transparent focus:outline-none"
+        />
+        <span className="shrink-0 text-fg-3">.{domain}</span>
+      </div>
+      {error && (
+        <p id="address-error" role="alert" className="mt-2 text-[13px] text-red-600">
+          {error}
+        </p>
+      )}
+      <div className="mt-3 flex gap-2">
+        <button
+          disabled={saving || !value || value === slug}
+          className="h-11 rounded-full bg-octa-600 px-5 text-[14px] font-medium text-white hover:bg-octa-500 disabled:bg-fg/10 disabled:text-fg-3"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button type="button" onClick={() => setEditing(false)} className="h-11 rounded-full px-4 text-[14px] font-medium text-fg-2 hover:bg-fg/5">
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
 

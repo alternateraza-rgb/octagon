@@ -22,6 +22,7 @@ export default async function SitePage({ params, searchParams }: PageProps<"/das
       versions={versions}
       deployments={deployments}
       liveUrl={site.slug && site.deployedVersionId ? siteUrl(env, site.slug) : null}
+      sitesDomain={env.SITES_DOMAIN}
       autoStart={isNew === "1"}
       stalled={isStalled(site)}
     />
