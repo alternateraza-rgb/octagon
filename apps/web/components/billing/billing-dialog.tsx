@@ -14,7 +14,7 @@ const WhopCheckoutEmbed = dynamic(() => import("@whop/checkout/react").then((m) 
   loading: () => <EmbedLoading />,
 });
 
-type Step = "plans" | "checkout" | "activating" | "done";
+type Step = "plans" | "checkout" | "done";
 type Session = { plan: PlanId; id: string; purchaseUrl: string };
 
 // Choose a plan, pay in Whop's embedded checkout, then wait for the webhook to switch the plan on.
@@ -64,6 +64,8 @@ function Dialog({
   const [error, setError] = useState("");
   const [slow, setSlow] = useState(false);
   const [embedReady, setEmbedReady] = useState(false);
+  // Paid in the embed; waiting for Whop's webhook to switch the plan on.
+  const [paid, setPaid] = useState(false);
   const activatedRef = useRef(onActivated);
   useEffect(() => {
     activatedRef.current = onActivated;
@@ -108,7 +110,7 @@ function Dialog({
   // Whop confirms payments to our webhook, not to the page: watch the account until the plan is on.
   // Also covers paying in Whop's own tab, which never calls back here.
   useEffect(() => {
-    if (!session || (step !== "checkout" && step !== "activating")) return;
+    if (!session || step !== "checkout") return;
     let stopped = false;
     const startedAt = Date.now();
     const tick = async () => {
@@ -119,18 +121,28 @@ function Dialog({
         activatedRef.current(status);
         return;
       }
-      if (step === "activating" && Date.now() - startedAt > 45_000) setSlow(true);
-      timer = setTimeout(tick, step === "activating" ? 1500 : 4000);
+      if (paid && Date.now() - startedAt > 45_000) setSlow(true);
+      timer = setTimeout(tick, paid ? 1500 : 4000);
     };
-    let timer = setTimeout(tick, step === "activating" ? 800 : 4000);
+    let timer = setTimeout(tick, paid ? 800 : 4000);
     return () => {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [session, step]);
+  }, [session, step, paid]);
+
+  // Whop's embed covers the page with its own overlay while a payment processes and closes it
+  // shortly after. Make sure none is left behind once checkout is over or this dialog closes.
+  useEffect(() => {
+    if (step !== "done") return;
+    const timers = [0, 2000].map((ms) => setTimeout(clearWhopOverlays, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [step]);
+  useEffect(() => () => void setTimeout(clearWhopOverlays, 0), []);
 
   const plan = session ? planById(session.plan)! : null;
-  const closable = step !== "activating" || slow;
+  const activating = step === "checkout" && paid;
+  const closable = !activating || slow;
   const wide = step === "plans";
 
   return (
@@ -159,7 +171,7 @@ function Dialog({
         }`}
       >
         <div className="mb-5 flex items-center gap-2">
-          {step === "checkout" && !initialPlan && (
+          {step === "checkout" && !paid && !initialPlan && (
             <button
               aria-label="Back to plans"
               onClick={() => setStep("plans")}
@@ -171,8 +183,7 @@ function Dialog({
           <div className="min-w-0 flex-1">
             <h2 className="font-[family-name:var(--font-display)] text-[28px] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-[32px]">
               {step === "plans" && (current ? "Change your plan" : "Choose your plan")}
-              {step === "checkout" && plan && `Octacore ${plan.name}`}
-              {step === "activating" && "Setting up your plan…"}
+              {step === "checkout" && !paid && plan && (paid ? "Setting up your plan…" : `Octacore ${plan.name}`)}
               {step === "done" && plan && `You're on ${plan.name}`}
             </h2>
             {step === "checkout" && plan && (
@@ -215,7 +226,16 @@ function Dialog({
 
           {step === "checkout" && session && (
             <motion.div key="checkout" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="relative min-h-[420px] overflow-hidden rounded-[18px]">
+              {paid && <Activating slow={slow} />}
+              {/* Stays mounted after payment so Whop can finish and close its own overlay. */}
+              <div
+                aria-hidden={paid || undefined}
+                className={
+                  paid
+                    ? "pointer-events-none absolute h-0 overflow-hidden opacity-0"
+                    : "relative min-h-[420px] overflow-hidden rounded-[18px]"
+                }
+              >
                 {!embedReady && (
                   <div className="absolute inset-0">
                     <EmbedLoading />
@@ -228,44 +248,26 @@ function Dialog({
                     skipRedirect
                     themeOptions={{ accentColor: "#c2410c", borderRadius: 12 }}
                     onStateChange={(state) => state !== "loading" && setEmbedReady(true)}
-                    onComplete={() => setStep("activating")}
+                    onComplete={() => setPaid(true)}
                   />
                 </div>
               </div>
-              <a
-                href={session.purchaseUrl}
-                target="_blank"
-                rel="noopener"
-                className="mt-4 flex items-center justify-center gap-1 text-[13px] text-fg-3 hover:text-fg"
-              >
-                Trouble paying here? Open secure checkout in a new tab <ArrowUpRight size={13} />
-              </a>
+              {!paid && (
+                <a
+                  href={session.purchaseUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="mt-4 flex items-center justify-center gap-1 text-[13px] text-fg-3 hover:text-fg"
+                >
+                  Trouble paying here? Open secure checkout in a new tab <ArrowUpRight size={13} />
+                </a>
+              )}
             </motion.div>
           )}
 
           {step === "checkout" && !session && (
             <motion.div key="starting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <EmbedLoading />
-            </motion.div>
-          )}
-
-          {step === "activating" && (
-            <motion.div
-              key="activating"
-              initial={reduce ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="grid place-items-center py-10 text-center"
-            >
-              <span className="relative grid size-16 place-items-center">
-                <span className="absolute inset-0 animate-ping rounded-full bg-octa-600/20" />
-                <span className="size-4 rounded-full bg-octa-600" />
-              </span>
-              <p className="mt-6 max-w-[340px] text-[15px] text-fg-2">
-                {slow
-                  ? "Payment received — it's taking a little longer than usual to switch your plan on. We'll email you the moment it's ready."
-                  : "Payment received. Unlocking everything in your plan…"}
-              </p>
             </motion.div>
           )}
 
@@ -303,6 +305,34 @@ function Dialog({
       </motion.div>
     </div>
   );
+}
+
+function Activating({ slow }: { slow: boolean }) {
+  return (
+    <div className="grid place-items-center py-10 text-center">
+      <span className="relative grid size-16 place-items-center">
+        <span className="absolute inset-0 animate-ping rounded-full bg-octa-600/20" />
+        <span className="size-4 rounded-full bg-octa-600" />
+      </span>
+      <p className="mt-6 max-w-[340px] text-[15px] text-fg-2">
+        {slow
+          ? "Payment received — it's taking a little longer than usual to switch your plan on. We'll email you the moment it's ready."
+          : "Payment received. Unlocking everything in your plan…"}
+      </p>
+    </div>
+  );
+}
+
+// Removes any overlay Whop's embed left open, and the scroll lock it puts on the page.
+function clearWhopOverlays() {
+  document.querySelectorAll<HTMLDialogElement>("dialog[data-whop-checkout-overlay]").forEach((overlay) => {
+    try {
+      overlay.close();
+    } catch {}
+    overlay.remove();
+  });
+  document.body.style.overflow = "";
+  document.documentElement.style.overflow = "";
 }
 
 function EmbedLoading() {
