@@ -10,6 +10,7 @@ import { TEMPLATES } from "@/components/templates";
 import { TemplateFrame } from "@/components/templates/frame";
 import { Photo } from "@/components/templates/photo";
 import { CropMarks, CutIn, Reveal, RevealText } from "./motion";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
 const display = "font-[family-name:var(--font-display)] font-semibold";
 
@@ -400,6 +401,8 @@ const FAQS = [
   ["Where are the websites hosted?", "On Octacore's global infrastructure, with SSL, a free octacore.site address and support for custom domains."],
   ["What do Octa Agents do?", "They find local businesses on Google that don't have a website yet, rank them, and build each one a site with its real details and reviews — so you spend your time closing, not prospecting. Automated outreach is coming soon."],
   ["Can I bring my own clients?", "Of course. Agents are optional, and you can transfer a site without using Octacore checkout."],
+  ["Can I get a refund?", "Yes. If Octacore isn't right for you, email us within 14 days of your first payment for a full refund. You can cancel any time from Settings, and your plan runs to the end of the period. See the refund policy for details."],
+  ["How do I get help?", `Email ${SUPPORT_EMAIL} with your question and we'll get back to you.`],
 ];
 
 export function Faq() {
@@ -469,11 +472,11 @@ export function Sendoff() {
 
 /* ———————————————————— Footer ———————————————————— */
 
-const FOOTER = {
-  Company: ["About us", "Affiliate program", "Careers", "Contact"],
-  Product: ["Builder", "Hosting", "Octa Agents", "Templates"],
-  Resources: ["Guides", "Help center", "Changelog", "Status"],
-  Legal: ["Privacy policy", "Terms of service", "Acceptable use"],
+const FOOTER: Record<string, [string, string][]> = {
+  Company: [["About us", "#"], ["Affiliate program", "#"], ["Careers", "#"], ["Contact", `mailto:${SUPPORT_EMAIL}`]],
+  Product: [["Builder", "/#stack"], ["Hosting", "/#stack"], ["Octa Agents", "/#agents"], ["Templates", "/#templates"]],
+  Resources: [["Guides", "#"], ["Help center", `mailto:${SUPPORT_EMAIL}`], ["Changelog", "#"], ["Status", "#"]],
+  Legal: [["Privacy policy", "/privacy"], ["Refund policy", "/refunds"], ["Terms of service", "#"], ["Acceptable use", "#"]],
 };
 
 export function Footer() {
@@ -486,15 +489,21 @@ export function Footer() {
             Octacore is the app for building, hosting and selling websites. Describe a site, ship it in minutes, and get
             paid when the business says yes.
           </p>
+          <p className="mt-4 text-fg-2">
+            Support:{" "}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-fg hover:text-octa-700">
+              {SUPPORT_EMAIL}
+            </a>
+          </p>
         </div>
         {Object.entries(FOOTER).map(([h, items]) => (
           <div key={h}>
             <p className="font-medium">{h}</p>
             <ul className="mt-4 space-y-2.5 text-fg-2">
-              {items.map((i) => (
-                <li key={i}>
-                  <a href="#" className="hover:text-fg">
-                    {i}
+              {items.map(([label, href]) => (
+                <li key={label}>
+                  <a href={href} className="hover:text-fg">
+                    {label}
                   </a>
                 </li>
               ))}
