@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Attachment } from "@/lib/attachments";
+import { noticeUpgrade } from "@/lib/billing/client";
 
 export const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf";
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -20,7 +21,8 @@ export type PendingFile = {
 // Uploads files as soon as they're picked, so sending never waits on them.
 export function useUploads() {
   const [files, setFiles] = useState<PendingFile[]>([]);
-  const update = (key: string, patch: Partial<PendingFile>) => setFiles((fs) => fs.map((f) => (f.key === key ? { ...f, ...patch } : f)));
+  const update = (key: string, patch: Partial<PendingFile>) =>
+    setFiles((fs) => fs.map((f) => (f.key === key ? { ...f, ...patch } : f)));
 
   function add(list: FileList | File[]) {
     const picked = Array.from(list).slice(0, Math.max(0, MAX_FILES - files.length));
@@ -32,9 +34,14 @@ export function useUploads() {
       else if (file.size > MAX_BYTES) Object.assign(entry, { status: "error", error: "Larger than 10 MB" });
       setFiles((fs) => [...fs, entry]);
       if (entry.status === "error") continue;
-      fetch("/api/uploads", { method: "POST", headers: { "content-type": file.type, "x-file-name": encodeURIComponent(file.name) }, body: file })
+      fetch("/api/uploads", {
+        method: "POST",
+        headers: { "content-type": file.type, "x-file-name": encodeURIComponent(file.name) },
+        body: file,
+      })
         .then(async (res) => {
           const body = (await res.json().catch(() => null)) as (Attachment & { error?: string }) | null;
+          noticeUpgrade(res.status, body);
           if (!res.ok || !body?.id) throw new Error(body?.error ?? "Upload failed");
           update(key, { status: "done", attachment: body });
         })

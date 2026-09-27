@@ -109,3 +109,65 @@ export function welcomeEmail({ to, name }: { to: string; name: string }): Email 
     text: `Hi ${name.split(" ")[0] || "there"},\n\nWelcome to Octacore. Describe any business and Octacore designs, builds and hosts its website.\n\nBuild your first site: ${ORIGIN}/dashboard/sites\n\n— Octacore`,
   };
 }
+
+const day = new Intl.DateTimeFormat("en", { month: "long", day: "numeric", timeZone: "UTC" });
+
+export function planActivatedEmail({
+  to,
+  name,
+  plan,
+  features,
+}: {
+  to: string;
+  name: string;
+  plan: string;
+  features: string[];
+}): Email {
+  const list = features.map((f) => `<span style="color:#c2410c">&#10003;</span>&nbsp; ${escape(f)}`).join("<br>");
+  return {
+    to,
+    subject: `You're on Octacore ${plan}`,
+    html: layout({
+      preview: `Your ${plan} plan is active. Here's what's included.`,
+      title: `You're on ${escape(plan)}`,
+      body: `Hi ${first(name)}, your plan is active and everything is unlocked. Here's what's included each month:<br><br><span style="color:#0f0f0f">${list}</span>`,
+      button: { label: "Start building", url: `${ORIGIN}/dashboard/sites` },
+      after: `Receipts come from Whop, our payment partner. Manage or cancel your plan anytime in <a href="${ORIGIN}/dashboard/settings#billing" style="color:#c2410c">Settings</a>.`,
+      reason: "You're getting this because you subscribed to an Octacore plan.",
+    }),
+    text: `Hi ${name.split(" ")[0] || "there"},\n\nYour Octacore ${plan} plan is active:\n${features.map((f) => `- ${f}`).join("\n")}\n\nStart building: ${ORIGIN}/dashboard/sites\n\n— Octacore`,
+  };
+}
+
+export function planEndedEmail({ to, name, pausesAt }: { to: string; name: string; pausesAt: number }): Email {
+  const date = day.format(pausesAt);
+  return {
+    to,
+    subject: "Your Octacore plan has ended",
+    html: layout({
+      preview: `Your live sites stay up until ${date}.`,
+      title: "Your plan has ended",
+      body: `Hi ${first(name)}, your Octacore plan has ended, so building and editing are paused. Your live websites stay up until <span style="color:#0f0f0f;font-weight:600">${date}</span> — renew before then and your clients won't notice a thing.`,
+      button: { label: "Renew your plan", url: `${ORIGIN}/dashboard/settings#billing` },
+      after: "Your sites, versions and addresses are kept safe either way.",
+      reason: "You're getting this because your Octacore subscription ended.",
+    }),
+    text: `Hi ${name.split(" ")[0] || "there"},\n\nYour Octacore plan has ended. Your live websites stay up until ${date}. Renew here: ${ORIGIN}/dashboard/settings#billing\n\n— Octacore`,
+  };
+}
+
+export function sitesPausedEmail({ to, name, count }: { to: string; name: string; count: number }): Email {
+  const sites = count === 1 ? "Your website is" : `Your ${count} websites are`;
+  return {
+    to,
+    subject: `${sites} paused`,
+    html: layout({
+      preview: "Renew your plan to bring them back instantly.",
+      title: `${sites} paused`,
+      body: `Hi ${first(name)}, it's been 14 days since your Octacore plan ended, so your live sites now show a "paused" page. Everything is kept — renew and they're back online within seconds, at the same addresses.`,
+      button: { label: "Renew and go live", url: `${ORIGIN}/dashboard/settings#billing` },
+      reason: "You're getting this because your Octacore subscription ended.",
+    }),
+    text: `Hi ${name.split(" ")[0] || "there"},\n\n${sites} paused because your Octacore plan ended 14 days ago. Renew to bring them back at the same addresses: ${ORIGIN}/dashboard/settings#billing\n\n— Octacore`,
+  };
+}

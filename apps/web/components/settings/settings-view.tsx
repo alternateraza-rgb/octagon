@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Check,
+  CreditCard,
   KeyRound,
   Laptop,
   Monitor,
@@ -12,7 +13,6 @@ import {
   Palette,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   Sun,
   Trash2,
   User,
@@ -20,12 +20,15 @@ import {
 import { authClient } from "@/lib/auth/client";
 import { useWorkspace, type Theme } from "@/components/app/workspace";
 import { useToast } from "@/components/ui/toast";
+import { Billing } from "@/components/billing/billing-section";
+import { Card } from "./card";
+import type { BillingStatus } from "@/lib/billing/client";
 
 const SECTIONS = [
   { id: "profile", label: "Profile", icon: User },
   { id: "security", label: "Security", icon: ShieldCheck },
   { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "plan", label: "Plan", icon: Sparkles },
+  { id: "billing", label: "Plan and billing", icon: CreditCard },
   { id: "danger", label: "Delete account", icon: Trash2 },
 ] as const;
 
@@ -34,9 +37,11 @@ const since = new Intl.DateTimeFormat("en", { month: "long", year: "numeric" });
 export function SettingsView({
   user,
   currentSessionId,
+  billing,
 }: {
   user: { name: string; email: string; createdAt: number };
   currentSessionId: string;
+  billing: BillingStatus;
 }) {
   const reduce = useReducedMotion();
   const [active, setActive] = useState<string>("profile");
@@ -109,42 +114,12 @@ export function SettingsView({
             <Profile user={user} />
             <Security email={user.email} currentSessionId={currentSessionId} />
             <Appearance />
-            <Plan />
+            <Billing status={billing} />
             <Danger email={user.email} />
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-function Card({
-  id,
-  title,
-  description,
-  children,
-  tone,
-}: {
-  id: string;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-  tone?: "danger";
-}) {
-  const reduce = useReducedMotion();
-  return (
-    <motion.section
-      id={id}
-      initial={reduce ? false : { opacity: 0, y: 18 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ type: "spring", stiffness: 110, damping: 20 }}
-      className={`scroll-mt-6 rounded-[24px] bg-elevated p-6 shadow-soft ring-1 sm:p-8 ${tone === "danger" ? "ring-red-500/25" : "ring-hairline"}`}
-    >
-      <h2 className={`text-[21px] font-semibold tracking-[-0.02em] ${tone === "danger" ? "text-red-600" : ""}`}>{title}</h2>
-      <p className="mt-1 text-[15px] text-fg-2">{description}</p>
-      <div className="mt-6">{children}</div>
-    </motion.section>
   );
 }
 
@@ -469,49 +444,6 @@ function ThemePreview({ kind }: { kind: Theme }) {
         pane(kind === "dark")
       )}
     </div>
-  );
-}
-
-function Plan() {
-  return (
-    <Card id="plan" title="Plan" description="What your account includes.">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-[20px] p-5 ring-2 ring-octa-600">
-          <div className="flex items-center justify-between">
-            <p className="text-[17px] font-semibold">Free</p>
-            <span className="rounded-full bg-octa-600/10 px-2.5 py-1 text-[12px] font-medium text-octa-700 dark:text-octa-400">
-              Current plan
-            </span>
-          </div>
-          <p className="mt-1 font-[family-name:var(--font-display)] text-[36px] font-semibold tracking-[-0.04em]">$0</p>
-          <ul className="mt-3 space-y-2 text-[14px] text-fg-2">
-            {["40 AI builds and edits a day", "Deploy to octacore.app addresses", "Chat with Octa", "Uploads up to 10 MB"].map(
-              (f) => (
-                <li key={f} className="flex items-center gap-2">
-                  <Check size={14} strokeWidth={2.5} className="text-octa-600" /> {f}
-                </li>
-              ),
-            )}
-          </ul>
-        </div>
-        <div className="grain relative overflow-hidden rounded-[20px] bg-octa-700 p-5 text-white">
-          <div className="flex items-center justify-between">
-            <p className="text-[17px] font-semibold">Pro</p>
-            <span className="rounded-full bg-white/15 px-2.5 py-1 text-[12px] font-medium">Coming soon</span>
-          </div>
-          <p className="mt-1 font-[family-name:var(--font-display)] text-[36px] font-semibold tracking-[-0.04em]">
-            $29<span className="text-[15px] font-medium text-white/75">/mo</span>
-          </p>
-          <ul className="mt-3 space-y-2 text-[14px] text-white/85">
-            {["Unlimited websites", "Custom domains for clients", "Sell with checkout links", "Octa Agents"].map((f) => (
-              <li key={f} className="flex items-center gap-2">
-                <Check size={14} strokeWidth={2.5} /> {f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </Card>
   );
 }
 

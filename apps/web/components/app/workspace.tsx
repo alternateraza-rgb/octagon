@@ -1,10 +1,29 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { Conversation } from "@/lib/chat/store";
+import type { PlanId } from "@/lib/billing/plans";
+import { onUpgrade, type BillingStatus } from "@/lib/billing/client";
+import { BillingDialog } from "@/components/billing/billing-dialog";
 
 export type Theme = "system" | "light" | "dark";
 export type Me = { name: string; email: string };
+export type BillingSummary = {
+  plan: PlanId | null;
+  active: boolean;
+  comped: boolean;
+  pausesAt: number | null;
+  builds: { used: number; limit: number } | null;
+};
+
+export const summarize = ({ access, usage }: BillingStatus): BillingSummary => ({
+  plan: access.plan,
+  active: access.active,
+  comped: access.comped,
+  pausesAt: access.pausesAt,
+  builds: access.limits ? { used: usage.builds, limit: access.limits.builds } : null,
+});
 
 type Workspace = {
   me: Me;
@@ -14,6 +33,10 @@ type Workspace = {
   removeConversation: (id: string) => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  billing: BillingSummary;
+  setBilling: (billing: BillingSummary) => void;
+  // Opens plan selection and checkout, optionally straight into one plan's checkout.
+  openBilling: (options?: { plan?: PlanId; message?: string }) => void;
 };
 
 const WorkspaceContext = createContext<Workspace | null>(null);
@@ -28,31 +51,55 @@ export function WorkspaceProvider({
   me,
   initialConversations,
   initialTheme,
+  initialBilling,
   children,
 }: {
   me: Me;
   initialConversations: Conversation[];
   initialTheme: Theme;
+  initialBilling: BillingSummary;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [conversations, setConversations] = useState(initialConversations);
   const [theme, setThemeState] = useState(initialTheme);
+  const [billing, setBilling] = useState(initialBilling);
+  const [dialog, setDialog] = useState<{ plan?: PlanId; message?: string } | null>(null);
+
+  // Any request refused for the plan's limits opens the upgrade dialog with the reason.
+  useEffect(() => onUpgrade((notice) => setDialog({ message: notice.error })), []);
 
   return (
     <WorkspaceContext.Provider
       value={{
         me,
         conversations,
-        upsertConversation: (c) => setConversations((list) => [c, ...list.filter((x) => x.id !== c.id)].sort((a, b) => b.updatedAt - a.updatedAt)),
+        upsertConversation: (c) =>
+          setConversations((list) => [c, ...list.filter((x) => x.id !== c.id)].sort((a, b) => b.updatedAt - a.updatedAt)),
         removeConversation: (id) => setConversations((list) => list.filter((x) => x.id !== id)),
         theme,
         setTheme: (t) => {
           setThemeState(t);
           document.cookie = `theme=${t}; path=/; max-age=31536000; samesite=lax`;
         },
+        billing,
+        setBilling,
+        openBilling: (options) => setDialog(options ?? {}),
       }}
     >
       {children}
+      <BillingDialog
+        open={!!dialog}
+        plan={dialog?.plan}
+        message={dialog?.message}
+        current={billing.active ? billing.plan : null}
+        theme={theme}
+        onClose={() => setDialog(null)}
+        onActivated={(status) => {
+          setBilling(summarize(status));
+          router.refresh();
+        }}
+      />
     </WorkspaceContext.Provider>
   );
 }

@@ -1,5 +1,5 @@
-// Worker entry: serves deployed sites from KV and the streaming AI endpoints directly;
-// everything else goes to Next.
+// Worker entry: serves deployed sites from KV, the streaming AI endpoints and Whop's webhooks
+// directly; everything else goes to Next. The daily cron pauses sites of lapsed plans.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore `.open-next/worker.js` is generated at build time.
 import { default as nextHandler } from "./.open-next/worker.js";
@@ -7,6 +7,8 @@ import { routeStreamingApi } from "./lib/api/streaming";
 import { deployedSlug, serveDeployedSite } from "./lib/deploy/sites";
 import { serveImage } from "./lib/images";
 import { routeUploads } from "./lib/uploads";
+import { runBillingCron } from "./lib/billing/cron";
+import { routeWhopWebhook } from "./lib/billing/webhook";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore generated at build time.
@@ -22,8 +24,13 @@ export default {
     if (uploads) return uploads;
     const slug = deployedSlug(url, env.SITES_DOMAIN);
     if (slug) return serveDeployedSite(env, slug);
+    const webhook = routeWhopWebhook(request, env, ctx);
+    if (webhook) return webhook;
     const streaming = routeStreamingApi(request, env);
     if (streaming) return streaming;
     return nextHandler.fetch(request, env, ctx);
+  },
+  async scheduled(_controller, env, ctx) {
+    await runBillingCron(env, ctx);
   },
 } satisfies ExportedHandler<CloudflareEnv>;

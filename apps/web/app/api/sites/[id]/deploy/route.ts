@@ -2,6 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getSession } from "@/lib/auth/server";
 import { pickSlug, publish, siteUrl } from "@/lib/deploy/sites";
 import { getSite, getVersionHtml } from "@/lib/sites/store";
+import { checkLimit } from "@/lib/billing/entitlements";
 
 // Publishes a version (the latest by default) to the site's public address. Redeploying an older
 // version is how you roll back. The first deploy picks the address, e.g. pakeeza.octacore.app.
@@ -17,6 +18,12 @@ export async function POST(request: Request, { params }: RouteContext<"/api/site
   const target = typeof versionId === "string" ? versionId : site.latestVersionId;
   const html = target && (await getVersionHtml(env.DB, target, session.user.id));
   if (!target || !html) return Response.json({ error: "Build the site before deploying it." }, { status: 400 });
+  // Deploying needs an active plan; a site that isn't live yet also takes one of the plan's live sites.
+  const live = await env.DB.prepare(`select 1 from site where id = ? and deployedVersionId is not null and pausedAt is null`)
+    .bind(id)
+    .first();
+  const refused = await checkLimit(env, session.user, "sites", live ? 0 : 1);
+  if (refused) return refused;
 
   // Claim the address in D1 first (its unique index settles races), then publish to it.
   let slug = site.slug;
@@ -34,8 +41,13 @@ export async function POST(request: Request, { params }: RouteContext<"/api/site
   await publish(env, slug, html);
   const now = Date.now();
   await env.DB.batch([
-    env.DB.prepare(`update site set deployedVersionId = ?, updatedAt = ? where id = ?`).bind(target, now, id),
-    env.DB.prepare(`insert into deployment (id, siteId, versionId, createdAt) values (?, ?, ?, ?)`).bind(crypto.randomUUID(), id, target, now),
+    env.DB.prepare(`update site set deployedVersionId = ?, pausedAt = null, updatedAt = ? where id = ?`).bind(target, now, id),
+    env.DB.prepare(`insert into deployment (id, siteId, versionId, createdAt) values (?, ?, ?, ?)`).bind(
+      crypto.randomUUID(),
+      id,
+      target,
+      now,
+    ),
   ]);
   return Response.json({ url: siteUrl(env, slug), slug, versionId: target });
 }

@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { useUploads } from "@/components/uploads/use-uploads";
 import { BuilderTimeline, type Pending } from "./builder-chat";
 import { BuildStage, EditOverlay } from "./build-progress";
+import { noticeUpgrade } from "@/lib/billing/client";
 
 type Device = "desktop" | "tablet" | "mobile";
 const DEVICES: { id: Device; label: string; icon: typeof Monitor; width: string }[] = [
@@ -107,6 +108,7 @@ export function Builder({
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        noticeUpgrade(res.status, body);
         throw new Error(body?.error ?? "Something went wrong.");
       }
       let text: string;
@@ -148,10 +150,10 @@ export function Builder({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ versionId: target }),
     }).catch(() => null);
-    const body = (await res?.json().catch(() => null)) as { url?: string } | null;
+    const body = (await res?.json().catch(() => null)) as { url?: string; error?: string } | null;
     if (res?.ok && body?.url)
       toast.success(versionId ? `Restored version ${number(target)}` : `Live at ${body.url.replace("https://", "")}`);
-    else toast.error("Deploy failed. Try again.");
+    else if (!noticeUpgrade(res?.status, body)) toast.error(body?.error ?? "Deploy failed. Try again.");
     setDeploying(null);
     startRefresh(() => router.refresh());
   }
