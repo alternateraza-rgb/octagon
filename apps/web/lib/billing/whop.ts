@@ -15,7 +15,27 @@ export type WhopMembership = {
   manage_url?: string | null;
 };
 
-export class WhopError extends Error {}
+export class WhopError extends Error {
+  constructor(
+    message: string,
+    // Whop's HTTP status (0 when the request never reached Whop) and its own explanation.
+    readonly status = 0,
+    readonly whopMessage = "",
+  ) {
+    super(message);
+  }
+}
+
+// The human-readable part of a Whop error body: `{ error: { message } }` or `{ message }`.
+function readWhopMessage(body: string) {
+  try {
+    const json = JSON.parse(body) as { error?: { message?: string } | string; message?: string };
+    const message = typeof json.error === "string" ? json.error : (json.error?.message ?? json.message);
+    return typeof message === "string" ? message.trim().slice(0, 300) : "";
+  } catch {
+    return body.trim().slice(0, 300);
+  }
+}
 
 async function whop<T>(env: CloudflareEnv, path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   if (!env.WHOP_API_KEY) throw new WhopError("WHOP_API_KEY is not set");
@@ -24,8 +44,10 @@ async function whop<T>(env: CloudflareEnv, path: string, init: { method?: string
     headers: { authorization: `Bearer ${env.WHOP_API_KEY}`, "content-type": "application/json" },
     body: init.body ? JSON.stringify(init.body) : undefined,
   });
-  if (!res.ok)
-    throw new WhopError(`Whop ${init.method ?? "GET"} ${path} failed: ${res.status} ${await res.text().catch(() => "")}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new WhopError(`Whop ${init.method ?? "GET"} ${path} failed: ${res.status} ${body}`, res.status, readWhopMessage(body));
+  }
   return res.json() as Promise<T>;
 }
 
@@ -114,7 +136,11 @@ export const accountLink = (
 // A checkout on the seller's account: the site itself (one payment) or its hosting (monthly).
 // Octacore's application fee is a fixed amount charged on every payment of the plan, which is why
 // the two are separate checkouts: each fee is exactly its share of that price.
-export function createSaleCheckout(
+//
+// Whop documents two ways to aim a checkout at a connected account: its platforms guide passes
+// `account_id` alongside a bare plan, its API reference puts the account in `plan.company_id`.
+// The guide's form goes first; if Whop rejects it, the reference form is tried once.
+export async function createSaleCheckout(
   env: CloudflareEnv,
   {
     accountId,
@@ -137,28 +163,30 @@ export function createSaleCheckout(
   },
 ) {
   const price = cents / 100;
-  const plan =
-    kind === "site"
+  const plan = {
+    currency,
+    ...(kind === "site"
       ? { plan_type: "one_time", initial_price: price }
-      : { plan_type: "renewal", billing_period: 30, renewal_price: price, initial_price: 0 };
-  return whop<{ id: string; purchase_url: string; plan?: { id: string } | null }>(env, "/checkout_configurations", {
-    method: "POST",
-    body: {
-      mode: "payment",
-      plan: {
-        company_id: accountId,
-        currency,
-        ...plan,
-        application_fee_amount: feeCents / 100,
-        title,
-        visibility: "hidden",
-        force_create_new_plan: true,
-        product: { external_identifier: `octacore-sale-${metadata.saleId}`, title, visibility: "hidden" },
-      },
-      metadata,
-      redirect_url: redirectUrl,
-    },
-  });
+      : { plan_type: "renewal", billing_period: 30, renewal_price: price, initial_price: 0 }),
+    application_fee_amount: feeCents / 100,
+    title,
+    visibility: "hidden",
+  };
+  type Checkout = { id: string; purchase_url: string; plan?: { id: string } | null };
+  const create = (body: Record<string, unknown>) =>
+    whop<Checkout>(env, "/checkout_configurations", {
+      method: "POST",
+      body: { mode: "payment", ...body, metadata, redirect_url: redirectUrl },
+    });
+  try {
+    return await create({ account_id: accountId, plan });
+  } catch (error) {
+    if (!(error instanceof WhopError) || error.status < 400 || error.status >= 500 || error.status === 401) throw error;
+    console.warn("Whop refused the account_id checkout form; retrying with plan.company_id", error.message);
+    const checkout = await create({ plan: { ...plan, company_id: accountId } });
+    console.warn("Whop accepted the plan.company_id checkout form");
+    return checkout;
+  }
 }
 
 export type WhopPayment = {

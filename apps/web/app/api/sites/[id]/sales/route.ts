@@ -4,7 +4,8 @@ import { checkLimit } from "@/lib/billing/entitlements";
 import { publicSale, sendInvite } from "@/lib/sales/invite";
 import { MONTHLY_RANGE, PRICE_RANGE, money, parsePrice } from "@/lib/sales/money";
 import { sellerStatus } from "@/lib/sales/seller";
-import { createSale, currentSale, isExpired } from "@/lib/sales/store";
+import { CheckoutError, ensureCheckout } from "@/lib/sales/checkout";
+import { cancelSale, createSale, currentSale, isExpired } from "@/lib/sales/store";
 import { getSite } from "@/lib/sites/store";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -60,6 +61,15 @@ export async function POST(request: Request, { params }: RouteContext<"/api/site
     return Response.json({ error: "This site already has an open invite. Cancel it to send a new one." }, { status: 409 });
 
   const sale = await createSale(env.DB, { siteId: id, sellerId: session.user.id, buyerEmail, buyerName, message, priceCents, monthlyCents });
+  // Set up the client's checkout now, so any problem with the seller's Whop account shows here
+  // rather than on the client's invite page. Nothing is emailed until it works.
+  try {
+    await ensureCheckout(env, sale, "site");
+  } catch (error) {
+    await cancelSale(env.DB, sale.id, session.user.id);
+    const reason = error instanceof CheckoutError && error.refused ? `Whop couldn't create the checkout: ${error.message}` : null;
+    return Response.json({ error: reason ?? "Couldn't reach Whop to set up the checkout. Try again in a moment." }, { status: 502 });
+  }
   if (!(await sendInvite(env, sale))) {
     return Response.json({ sale: publicSale(sale), warning: "The invite was saved, but the email didn't send. Copy the link and share it yourself." });
   }
