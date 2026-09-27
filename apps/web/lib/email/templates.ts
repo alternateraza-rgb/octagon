@@ -117,11 +117,13 @@ export function planActivatedEmail({
   name,
   plan,
   features,
+  yearly = false,
 }: {
   to: string;
   name: string;
   plan: string;
   features: string[];
+  yearly?: boolean;
 }): Email {
   const list = features.map((f) => `<span style="color:#c2410c">&#10003;</span>&nbsp; ${escape(f)}`).join("<br>");
   return {
@@ -130,7 +132,7 @@ export function planActivatedEmail({
     html: layout({
       preview: `Your ${plan} plan is active. Here's what's included.`,
       title: `You're on ${escape(plan)}`,
-      body: `Hi ${first(name)}, your plan is active and everything is unlocked. Here's what's included each month:<br><br><span style="color:#0f0f0f">${list}</span>`,
+      body: `Hi ${first(name)}, your plan is active${yearly ? ", billed yearly," : ""} and everything is unlocked. Here's what's included each month:<br><br><span style="color:#0f0f0f">${list}</span>`,
       button: { label: "Start building", url: `${ORIGIN}/dashboard/sites` },
       after: `Receipts come from Whop, our payment partner. Manage or cancel your plan anytime in <a href="${ORIGIN}/dashboard/settings#billing" style="color:#c2410c">Settings</a>.`,
       reason: "You're getting this because you subscribed to an Octacore plan.",

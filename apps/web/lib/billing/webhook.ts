@@ -3,7 +3,7 @@
 import { sendEmail } from "@/lib/email/send";
 import { planActivatedEmail, planEndedEmail } from "@/lib/email/templates";
 import { ACTIVE, GRACE_DAYS, getSubscription } from "./entitlements";
-import { planById, planForWhopPlan, type PlanId } from "./plans";
+import { isInterval, planById, planForWhopPlan, type Interval, type PlanId } from "./plans";
 import { resumeSites } from "./site-access";
 import { cancelMembership, getMembership, type WhopMembership } from "./whop";
 import { activateHosting, completeSitePayment, endHosting } from "@/lib/sales/fulfil";
@@ -190,7 +190,9 @@ async function syncMembership(
   const userId = await resolveUser(env, m);
   if (!userId) return console.warn("Whop membership for an unknown account", m.id);
   const metaPlan = typeof m.metadata?.plan === "string" ? m.metadata.plan : null;
-  const plan: PlanId | null = (await planForWhopPlan(env.DB, m.plan?.id)) ?? planById(metaPlan)?.id ?? null;
+  const known = await planForWhopPlan(env.DB, m.plan?.id);
+  const plan: PlanId | null = known?.plan ?? planById(metaPlan)?.id ?? null;
+  const interval: Interval = known?.interval ?? (isInterval(m.metadata?.interval) ? m.metadata.interval : "month");
   if (!plan) return console.warn("Whop membership for a plan Octacore doesn't sell", m.id, m.plan?.id);
 
   const existing = await getSubscription(env.DB, userId);
@@ -210,11 +212,11 @@ async function syncMembership(
   const wasActive = !!existing && ACTIVE.has(existing.status) && !existing.endedAt;
   const endedAt = isActive ? null : (existing?.endedAt ?? now);
   await env.DB.prepare(
-    `insert into subscription (userId, plan, status, whopMembershipId, whopUserId, periodStart, periodEnd, cancelAtPeriodEnd, manageUrl, endedAt, updatedAt)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `insert into subscription (userId, plan, status, whopMembershipId, whopUserId, periodStart, periodEnd, cancelAtPeriodEnd, manageUrl, endedAt, updatedAt, interval)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      on conflict (userId) do update set plan = excluded.plan, status = excluded.status, whopMembershipId = excluded.whopMembershipId,
        whopUserId = excluded.whopUserId, periodStart = excluded.periodStart, periodEnd = excluded.periodEnd,
-       cancelAtPeriodEnd = excluded.cancelAtPeriodEnd, manageUrl = excluded.manageUrl, endedAt = excluded.endedAt, updatedAt = excluded.updatedAt`,
+       cancelAtPeriodEnd = excluded.cancelAtPeriodEnd, manageUrl = excluded.manageUrl, endedAt = excluded.endedAt, updatedAt = excluded.updatedAt, interval = excluded.interval`,
   )
     .bind(
       userId,
@@ -228,12 +230,13 @@ async function syncMembership(
       m.manage_url ?? existing?.manageUrl ?? null,
       endedAt,
       now,
+      interval,
     )
     .run();
 
   if (isActive) {
     await resumeSites(env, userId);
-    const changedPlan = existing?.plan !== plan || existing?.whopMembershipId !== m.id;
+    const changedPlan = existing?.plan !== plan || existing?.interval !== interval || existing?.whopMembershipId !== m.id;
     if (activated && (!wasActive || changedPlan)) {
       const user = await env.DB.prepare(`select name, email from user where id = ?`)
         .bind(userId)
@@ -241,7 +244,7 @@ async function syncMembership(
       const details = planById(plan)!;
       if (user)
         ctx.waitUntil(
-          sendEmail(env, planActivatedEmail({ to: user.email, name: user.name, plan: details.name, features: details.features })),
+          sendEmail(env, planActivatedEmail({ to: user.email, name: user.name, plan: details.name, features: details.features, yearly: interval === "year" })),
         );
     }
   }

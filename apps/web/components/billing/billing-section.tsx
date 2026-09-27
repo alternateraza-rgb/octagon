@@ -70,7 +70,7 @@ export function Billing({ status }: { status: BillingStatus }) {
           </p>
         )}
         {returning && <p className="mb-5 text-[15px] text-fg-2">Confirming your payment…</p>}
-        <PlanCards compact onChoose={(id) => openBilling({ plan: id })} />
+        <PlanCards compact onChoose={(id, interval) => openBilling({ plan: id, interval })} />
       </Card>
     );
   }
@@ -106,7 +106,7 @@ export function Billing({ status }: { status: BillingStatus }) {
           <p className="mt-2 text-[15px] text-fg-2">
             {access.comped
               ? "Every Agency feature, on the house."
-              : `$${plan.price}/month${
+              : `${access.interval === "year" ? `$${(plan.yearly * 12).toLocaleString("en-US")}/year` : `$${plan.price}/month`}${
                   access.periodEnd ? ` · ${access.cancelAtPeriodEnd ? "Ends" : "Renews"} ${date.format(access.periodEnd)}` : ""
                 }`}
           </p>
@@ -151,8 +151,8 @@ export function Billing({ status }: { status: BillingStatus }) {
         ))}
       </div>
       <p className="mt-4 text-[13px] text-fg-3">
-        {access.periodEnd && !access.comped
-          ? `Builds and chat reset ${date.format(access.periodEnd)}. `
+        {access.usageResetsAt
+          ? `Builds and chat reset ${date.format(access.usageResetsAt)}. `
           : "Builds and chat reset each month. "}
         {!access.comped &&
           "Update your card, download receipts or cancel in Manage billing. Switching plans starts a new billing month."}

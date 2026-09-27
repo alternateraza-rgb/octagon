@@ -23,7 +23,9 @@ export type BillingStatus = {
     comped: boolean;
     status: string;
     limits: Record<"builds" | "chat" | "sites" | "storage" | "leads", number> | null;
+    interval: "month" | "year";
     periodStart: number;
+    usageResetsAt: number | null;
     periodEnd: number | null;
     cancelAtPeriodEnd: boolean;
     manageUrl: string | null;

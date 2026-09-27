@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowUpRight, Check, Lock, X } from "lucide-react";
-import { planById, type PlanId } from "@/lib/billing/plans";
+import { planById, priceFor, type Interval, type PlanId } from "@/lib/billing/plans";
 import { fetchBillingStatus, type BillingStatus } from "@/lib/billing/client";
 import { PlanCards } from "./plan-cards";
 import { clearWhopOverlays } from "@/lib/billing/whop-overlays";
@@ -16,7 +16,8 @@ const WhopCheckoutEmbed = dynamic(() => import("@whop/checkout/react").then((m) 
 });
 
 type Step = "plans" | "checkout" | "done";
-type Session = { plan: PlanId; id: string; purchaseUrl: string };
+type Choice = { plan: PlanId; interval: Interval };
+type Session = Choice & { id: string; purchaseUrl: string };
 
 // Choose a plan, pay in Whop's embedded checkout, then wait for the webhook to switch the plan on.
 export function BillingDialog({
@@ -30,8 +31,8 @@ export function BillingDialog({
 }: {
   open: boolean;
   // Skip straight to checkout for this plan.
-  plan?: PlanId | null;
-  current?: PlanId | null;
+  plan?: Choice | null;
+  current?: Choice | null;
   // Why the dialog opened, e.g. a limit that was reached.
   message?: string;
   theme?: "light" | "dark" | "system";
@@ -51,8 +52,8 @@ function Dialog({
   onClose,
   onActivated,
 }: {
-  initialPlan?: PlanId | null;
-  current?: PlanId | null;
+  initialPlan?: Choice | null;
+  current?: Choice | null;
   message?: string;
   theme: "light" | "dark" | "system";
   onClose: () => void;
@@ -72,13 +73,13 @@ function Dialog({
     activatedRef.current = onActivated;
   });
 
-  async function choose(plan: PlanId) {
+  async function choose(plan: PlanId, interval: Interval) {
     setBusy(plan);
     setError("");
     const res = await fetch("/api/billing/checkout", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, interval }),
     }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { id?: string; purchaseUrl?: string; error?: string } | null;
     setBusy(null);
@@ -87,7 +88,7 @@ function Dialog({
       setStep("plans");
       return;
     }
-    setSession({ plan, id: body.id, purchaseUrl: body.purchaseUrl });
+    setSession({ plan, interval, id: body.id, purchaseUrl: body.purchaseUrl });
     setStep("checkout");
   }
 
@@ -96,7 +97,7 @@ function Dialog({
   useEffect(() => {
     if (initialPlan && !started.current) {
       started.current = true;
-      choose(initialPlan);
+      choose(initialPlan.plan, initialPlan.interval);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -189,8 +190,11 @@ function Dialog({
             </h2>
             {step === "checkout" && plan && (
               <p className="mt-1 text-[15px] text-fg-2">
-                ${plan.price}/month · cancel anytime
-                {current && current !== plan.id && " · your current plan ends when this starts"}
+                {session!.interval === "year"
+                  ? `$${priceFor(plan, "year").charged.toLocaleString("en-US")}/year ($${plan.yearly}/mo)`
+                  : `$${plan.price}/month`}{" "}
+                · cancel anytime
+                {current && (current.plan !== plan.id || current.interval !== session!.interval) && " · your current plan ends when this starts"}
               </p>
             )}
           </div>
@@ -220,7 +224,7 @@ function Dialog({
                 </p>
               )}
               <p className="mt-5 flex items-center justify-center gap-1.5 text-[13px] text-fg-3">
-                <Lock size={12} /> Secure payments by Whop. Monthly billing, cancel anytime.
+                <Lock size={12} /> Secure payments by Whop. Cancel anytime.
               </p>
             </motion.div>
           )}
