@@ -24,8 +24,8 @@ export async function POST(request: Request, { params }: RouteContext<"/api/site
   const instruction = typeof body.instruction === "string" && body.instruction.trim() ? body.instruction.trim().slice(0, 2000) : site.prompt;
   const attachments = firstBuild ? parseAttachments(site.attachments) : await resolveAttachments(env.DB, session.user.id, body.attachments);
   try {
-    const { html, title } = cleanHtml(body.text);
-    return Response.json({ versionId: await addVersion(env.DB, id, instruction, html, title, attachments) });
+    const { html, title, summary, next } = cleanHtml(body.text);
+    return Response.json({ versionId: await addVersion(env.DB, id, instruction, html, title, attachments, { summary, next }) });
   } catch (error) {
     await setSiteStatus(env.DB, id, (await getLatestVersion(env.DB, id)) ? "ready" : "failed");
     return Response.json({ error: error instanceof Error ? error.message : "Couldn't save that build." }, { status: 422 });

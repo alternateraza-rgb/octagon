@@ -4,12 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, ArrowUp, Check, Copy, ExternalLink, Monitor, Rocket, Smartphone, Tablet } from "lucide-react";
+import { ArrowLeft, Check, Copy, ExternalLink, Loader2, Monitor, Rocket, Smartphone, Tablet } from "lucide-react";
 import { readModelText } from "@/lib/ai/read-events";
 import { parseAttachments, type Attachment } from "@/lib/attachments";
-import { AttachButton, AttachmentList, PendingTray } from "@/components/uploads/attachments";
-import { useUploads } from "@/components/uploads/use-uploads";
+import { buildProgress } from "@/lib/sites/build-progress";
+import { readNote } from "@/lib/sites/octa-note";
 import type { Deployment, Site, VersionSummary } from "@/lib/sites/store";
+import { Composer } from "@/components/chat/composer";
+import { useToast } from "@/components/ui/toast";
+import { useUploads } from "@/components/uploads/use-uploads";
+import { BuilderTimeline, type Pending } from "./builder-chat";
+import { BuildStage, EditOverlay } from "./build-progress";
 
 type Device = "desktop" | "tablet" | "mobile";
 const DEVICES: { id: Device; label: string; icon: typeof Monitor; width: string }[] = [
@@ -18,8 +23,9 @@ const DEVICES: { id: Device; label: string; icon: typeof Monitor; width: string 
   { id: "mobile", label: "Phone", icon: Smartphone, width: "390px" },
 ];
 
-const time = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" });
 const day = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+type Stream = { instruction: string; attachments: Attachment[]; raw: string };
 
 export function Builder({
   site,
@@ -27,6 +33,7 @@ export function Builder({
   deployments,
   liveUrl,
   sitesDomain,
+  latestSize,
   autoStart,
   stalled,
 }: {
@@ -35,10 +42,12 @@ export function Builder({
   deployments: Deployment[];
   liveUrl: string | null;
   sitesDomain: string;
+  latestSize: number;
   autoStart: boolean;
   stalled: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const reduce = useReducedMotion();
   const [refreshing, startRefresh] = useTransition();
   const [panel, setPanel] = useState<"chat" | "deploys">("chat");
@@ -47,17 +56,31 @@ export function Builder({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const uploads = useUploads();
-  const [pending, setPending] = useState<{ instruction: string; attachments: Attachment[]; code: string } | null>(null);
+  const [stream, setStream] = useState<Stream | null>(null);
   const [error, setError] = useState("");
   const [deploying, setDeploying] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const started = useRef(false);
-  const timelineRef = useRef<HTMLDivElement>(null);
 
   const latest = versions.at(-1) ?? null;
   const selected = versions.find((v) => v.id === selectedId) ?? latest;
-  const building = pending !== null || refreshing;
+  const building = stream !== null || refreshing;
   const number = (id: string) => versions.findIndex((v) => v.id === id) + 1;
+  const liveVersion = site.deployedVersionId;
+
+  // What the model has written so far: Octa's note, then the page (which drives the progress view).
+  const note = stream ? readNote(stream.raw) : null;
+  const progress = buildProgress(note?.html ?? "", latest ? Math.max(latestSize, 6000) : 16000);
+  const pending: Pending | null =
+    stream && note
+      ? {
+          instruction: stream.instruction,
+          attachments: stream.attachments,
+          summary: note.summary,
+          noteDone: note.complete,
+          progress,
+        }
+      : null;
 
   const save = (body: { instruction?: string; text: string; attachments?: string[] } | { failed: true }) =>
     fetch(`/api/sites/${site.id}/versions/save`, {
@@ -72,7 +95,7 @@ export function Builder({
     // Edits carry the files picked for them; the first build uses the ones given with the prompt.
     const attachments = instruction === undefined ? parseAttachments(site.attachments) : uploads.attachments;
     const ids = attachments.map((a) => a.id);
-    setPending({ instruction: instruction ?? site.prompt, attachments, code: "" });
+    setStream({ instruction: instruction ?? site.prompt, attachments, raw: "" });
     setInput("");
     uploads.clear();
     setMobileView("preview");
@@ -88,7 +111,7 @@ export function Builder({
       }
       let text: string;
       try {
-        text = await readModelText(res, (code) => setPending((p) => (p ? { ...p, code } : p)));
+        text = await readModelText(res, (raw) => setStream((s) => (s ? { ...s, raw } : s)));
       } catch (e) {
         await save({ failed: true });
         throw e;
@@ -98,19 +121,21 @@ export function Builder({
         const body = (await saved.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "Couldn't save that build. Try again.");
       }
-      setSelectedId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
-      setPending(null);
-      startRefresh(() => router.refresh());
+      // Cleared in the same transition as the refresh, so the new version replaces the live view seamlessly.
+      startRefresh(() => {
+        setStream(null);
+        setSelectedId(null);
+        router.refresh();
+      });
     }
   }
 
-  const canApply = !!latest && !building && !uploads.uploading && (!!input.trim() || uploads.attachments.length > 0);
-  function applyChange() {
-    if (!canApply) return;
-    generate(input.trim() || (uploads.attachments.length === 1 ? "Add this file to the site." : "Add these files to the site."));
+  function applyChange(value: string) {
+    if (!latest || building) return;
+    generate(value.trim() || (uploads.attachments.length === 1 ? "Add this file to the site." : "Add these files to the site."));
   }
 
   async function deploy(versionId?: string) {
@@ -123,7 +148,10 @@ export function Builder({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ versionId: target }),
     }).catch(() => null);
-    if (!res?.ok) setError("Deploy failed. Try again.");
+    const body = (await res?.json().catch(() => null)) as { url?: string } | null;
+    if (res?.ok && body?.url)
+      toast.success(versionId ? `Restored version ${number(target)}` : `Live at ${body.url.replace("https://", "")}`);
+    else toast.error("Deploy failed. Try again.");
     setDeploying(null);
     startRefresh(() => router.refresh());
   }
@@ -138,17 +166,13 @@ export function Builder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight });
-  }, [versions.length, pending?.instruction]);
-
-  const liveVersion = site.deployedVersionId;
-  const lines = pending ? pending.code.split("\n").length : 0;
+  const firstBuild = !!stream && !latest;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-12 shrink-0 items-center justify-center border-b border-hairline lg:hidden">
         <Segmented
+          id="mobile-view"
           value={mobileView}
           onChange={setMobileView}
           options={[
@@ -159,17 +183,23 @@ export function Builder({
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {/* Conversation and deploys */}
         <section
           aria-label="Site conversation"
-          className={`${mobileView === "chat" ? "flex" : "hidden"} w-full min-w-0 flex-col border-r border-hairline lg:flex lg:w-[380px] lg:shrink-0`}
+          className={`${mobileView === "chat" ? "flex" : "hidden"} w-full min-w-0 flex-col border-r border-hairline bg-canvas lg:flex lg:w-[400px] lg:shrink-0`}
         >
-          <div className="flex h-14 shrink-0 items-center gap-1 px-2">
-            <Link href="/dashboard/sites" aria-label="All websites" className="grid size-11 place-items-center rounded-full text-fg-2 hover:bg-fg/5 hover:text-fg">
+          <div className="flex h-14 shrink-0 items-center gap-1 border-b border-hairline px-2">
+            <Link
+              href="/dashboard/sites"
+              aria-label="All websites"
+              className="grid size-11 place-items-center rounded-full text-fg-2 hover:bg-fg/5 hover:text-fg"
+            >
               <ArrowLeft size={18} strokeWidth={1.5} />
             </Link>
-            <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold">{site.title ?? "New website"}</h1>
+            <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">
+              {site.title ?? "New website"}
+            </h1>
             <Segmented
+              id="panel"
               value={panel}
               onChange={setPanel}
               options={[
@@ -181,187 +211,91 @@ export function Builder({
 
           {panel === "chat" ? (
             <>
-              <div ref={timelineRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
-                {versions.map((v, i) => (
-                  <div key={v.id} className="space-y-2">
-                    <AttachmentList items={v.attachments} />
-                    <p className="ml-auto w-fit max-w-[90%] whitespace-pre-wrap break-words rounded-[18px] bg-fg/[.07] px-4 py-2.5 text-[15px] leading-[1.45]">
-                      {v.instruction}
-                    </p>
-                    <button
-                      onClick={() => setSelectedId(v.id)}
-                      aria-pressed={selected?.id === v.id}
-                      className={`flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-[14px] transition-colors ${
-                        selected?.id === v.id ? "bg-elevated shadow-soft ring-1 ring-hairline" : "hover:bg-fg/5"
-                      }`}
-                    >
-                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-octa-600/10 text-[11px] font-semibold text-octa-700">
-                        {i + 1}
-                      </span>
-                      <span className="flex-1">{i === 0 ? "Built your site" : "Applied your changes"}</span>
-                      {v.id === liveVersion && <LiveBadge />}
-                      <span className="text-[12px] text-fg-3">{time.format(v.createdAt)}</span>
-                    </button>
-                  </div>
-                ))}
-                {pending && (
-                  <div className="space-y-2">
-                    <AttachmentList items={pending.attachments} />
-                    <p className="ml-auto w-fit max-w-[90%] whitespace-pre-wrap break-words rounded-[18px] bg-fg/[.07] px-4 py-2.5 text-[15px] leading-[1.45]">
-                      {pending.instruction}
-                    </p>
-                    <p role="status" className="flex min-h-11 items-center gap-3 px-3 text-[14px] text-fg-2">
-                      <Pulse reduce={!!reduce} />
-                      {pending.code ? `Writing · ${lines} lines` : "Designing"}
-                    </p>
-                  </div>
-                )}
-                {versions.length === 0 && !pending && !refreshing && (
+              <BuilderTimeline
+                versions={versions}
+                pending={pending}
+                selectedId={selected?.id ?? null}
+                liveVersionId={liveVersion}
+                building={building}
+                onSelect={(id) => {
+                  setSelectedId(id);
+                  setMobileView("preview");
+                }}
+                onSuggestion={(s) => applyChange(s)}
+              >
+                {versions.length === 0 && !stream && !refreshing && (
                   <EmptyState site={site} stalled={stalled} onRetry={() => generate()} />
                 )}
-              </div>
-
+              </BuilderTimeline>
               <div className="shrink-0 p-3">
-                {error && (
-                  <p role="alert" className="mb-2 px-1 text-[13px] text-red-600">
-                    {error}
-                  </p>
-                )}
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    applyChange();
-                  }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (e.dataTransfer.files.length && latest && !building) uploads.add(e.dataTransfer.files);
-                  }}
-                  className="rounded-[18px] bg-elevated p-1.5 shadow-soft ring-1 ring-hairline"
-                >
-                  <PendingTray files={uploads.files} onRemove={uploads.remove} />
-                  <div className="flex items-end gap-1">
-                    <AttachButton onFiles={uploads.add} disabled={!latest || building} />
-                    <label htmlFor="change-input" className="sr-only">
-                      Describe a change
-                    </label>
-                    <textarea
-                      id="change-input"
-                      rows={1}
-                      value={input}
-                      disabled={!latest || building}
-                      onChange={(e) => setInput(e.target.value)}
-                      onPaste={(e) => {
-                        if (e.clipboardData.files.length) {
-                          e.preventDefault();
-                          uploads.add(e.clipboardData.files);
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                          e.preventDefault();
-                          applyChange();
-                        }
-                      }}
-                      placeholder={latest ? "Describe a change, or attach a logo…" : "Your site is being built…"}
-                      className="field-sizing-content max-h-[160px] min-h-11 flex-1 resize-none bg-transparent px-1 py-2.5 text-[15px] leading-[1.45] placeholder:text-fg-3 focus:outline-none disabled:opacity-60"
-                    />
-                    <button
-                      type="submit"
-                      aria-label="Apply change"
-                      disabled={!canApply}
-                      className="grid size-11 shrink-0 place-items-center rounded-full bg-octa-600 text-white transition-all hover:bg-octa-500 active:scale-95 disabled:bg-fg/10 disabled:text-fg-3"
+                <AnimatePresence>
+                  {error && (
+                    <motion.p
+                      role="alert"
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="mb-2 px-1 text-[13px] text-red-600"
                     >
-                      <ArrowUp size={18} strokeWidth={2} />
-                    </button>
-                  </div>
-                </form>
+                      {error}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+                <Composer
+                  id="change-input"
+                  label="Describe a change"
+                  size="md"
+                  placeholder={latest ? "Describe a change, or attach a logo…" : "Your site is being built…"}
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={applyChange}
+                  uploads={uploads}
+                  busy={building}
+                  disabled={!latest}
+                />
               </div>
             </>
           ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              {liveUrl ? (
-                <div className="rounded-[18px] bg-elevated p-4 shadow-soft ring-1 ring-hairline">
-                  <p className="flex items-center gap-2 text-[13px] text-fg-2">
-                    <LiveBadge /> Version {liveVersion ? number(liveVersion) : "—"}
-                  </p>
-                  <a href={liveUrl} target="_blank" rel="noopener" className="mt-2 block truncate text-[15px] font-medium hover:text-octa-600">
-                    {liveUrl.replace("https://", "")}
-                  </a>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(liveUrl);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 1500);
-                      }}
-                      className="flex h-11 items-center gap-2 rounded-full bg-fg/[.06] px-4 text-[14px] font-medium hover:bg-fg/10"
-                    >
-                      {copied ? <Check size={15} /> : <Copy size={15} strokeWidth={1.5} />} {copied ? "Copied" : "Copy link"}
-                    </button>
-                    <a href={liveUrl} target="_blank" rel="noopener" className="flex h-11 items-center gap-2 rounded-full bg-fg/[.06] px-4 text-[14px] font-medium hover:bg-fg/10">
-                      <ExternalLink size={15} strokeWidth={1.5} /> Visit
-                    </a>
-                  </div>
-                  <AddressEditor
-                    siteId={site.id}
-                    slug={site.slug!}
-                    domain={sitesDomain}
-                    onSaved={() => startRefresh(() => router.refresh())}
-                  />
-                </div>
-              ) : (
-                <p className="px-1 text-[15px] text-fg-2">Deploy your site to get a link you can share with anyone.</p>
-              )}
-
-              {deployments.length > 0 && (
-                <>
-                  <h2 className="mt-7 px-1 text-[12px] font-medium text-fg-3">History</h2>
-                  <ul className="mt-2 divide-y divide-hairline">
-                    {deployments.map((d, i) => (
-                      <li key={d.id} className="flex min-h-14 items-center gap-3 px-1 py-2 text-[14px]">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">Version {number(d.versionId)}</p>
-                          <p className="text-[12px] text-fg-3">{day.format(d.createdAt)}</p>
-                        </div>
-                        {i === 0 ? (
-                          <LiveBadge />
-                        ) : (
-                          d.versionId !== liveVersion && (
-                            <button
-                              onClick={() => deploy(d.versionId)}
-                              disabled={!!deploying}
-                              className="h-9 rounded-full px-3 text-[13px] font-medium text-octa-600 hover:bg-octa-600/10 disabled:opacity-50"
-                            >
-                              {deploying === d.versionId ? "Restoring…" : "Restore"}
-                            </button>
-                          )
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
+            <DeploysPanel
+              site={site}
+              liveUrl={liveUrl}
+              liveVersion={liveVersion}
+              deployments={deployments}
+              deploying={deploying}
+              copied={copied}
+              sitesDomain={sitesDomain}
+              number={number}
+              onCopy={async (url) => {
+                await navigator.clipboard.writeText(url);
+                setCopied(true);
+                toast.success("Link copied");
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              onRestore={deploy}
+              onAddressSaved={() => startRefresh(() => router.refresh())}
+            />
           )}
         </section>
 
-        {/* Preview */}
-        <section aria-label="Preview" className={`${mobileView === "preview" ? "flex" : "hidden"} min-w-0 flex-1 flex-col lg:flex`}>
+        <section
+          aria-label="Preview"
+          className={`${mobileView === "preview" ? "flex" : "hidden"} min-w-0 flex-1 flex-col lg:flex`}
+        >
           <div className="flex h-14 shrink-0 items-center gap-2 border-b border-hairline px-3">
             <div className="hidden sm:block">
               <Segmented
+                id="device"
                 value={device}
                 onChange={setDevice}
                 options={DEVICES.map(({ id, label, icon: Icon }) => ({ id, label, icon: <Icon size={16} strokeWidth={1.5} /> }))}
                 iconOnly
               />
             </div>
-            {selected && (
-              <p className="truncate text-[13px] text-fg-3">
+            {selected && !firstBuild && (
+              <span className="truncate rounded-full bg-fg/[.05] px-3 py-1 text-[12px] font-medium text-fg-2">
                 Version {number(selected.id)}
-                {selected.id !== latest?.id && " · viewing an older version"}
-              </p>
+                {selected.id !== latest?.id && <span className="text-fg-3"> · older</span>}
+              </span>
             )}
             <div className="ml-auto flex items-center gap-2">
               {selected && (
@@ -375,69 +309,71 @@ export function Builder({
                   <ExternalLink size={17} strokeWidth={1.5} />
                 </a>
               )}
-              {liveUrl && selected?.id === liveVersion ? (
-                <a
-                  href={liveUrl}
-                  target="_blank"
-                  rel="noopener"
-                  className="flex h-11 items-center gap-2 rounded-full bg-fg/[.06] px-4 text-[14px] font-medium hover:bg-fg/10"
-                >
-                  <span className="size-2 rounded-full bg-emerald-500" /> Live
-                </a>
-              ) : (
-                <button
-                  onClick={() => deploy()}
-                  disabled={!selected || building || !!deploying}
-                  className="flex h-11 items-center gap-2 rounded-full bg-octa-600 px-5 text-[15px] font-medium text-white transition-all hover:bg-octa-500 active:scale-[.98] disabled:bg-fg/10 disabled:text-fg-3"
-                >
-                  <Rocket size={16} strokeWidth={1.75} />
-                  {deploying ? "Deploying…" : liveUrl ? "Deploy update" : "Deploy"}
-                </button>
-              )}
+              <AnimatePresence mode="popLayout" initial={false}>
+                {liveUrl && selected?.id === liveVersion && !deploying ? (
+                  <motion.a
+                    key="live"
+                    href={liveUrl}
+                    target="_blank"
+                    rel="noopener"
+                    initial={reduce ? false : { opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                    className="flex h-11 items-center gap-2 rounded-full bg-emerald-500/10 px-4 text-[14px] font-medium text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-400"
+                  >
+                    <span className="relative flex size-2">
+                      <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/60" />
+                      <span className="relative size-2 rounded-full bg-emerald-500" />
+                    </span>
+                    Live
+                  </motion.a>
+                ) : (
+                  <motion.button
+                    key="deploy"
+                    onClick={() => deploy()}
+                    disabled={!selected || building || !!deploying}
+                    initial={reduce ? false : { opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                    className="flex h-11 items-center gap-2 rounded-full bg-octa-600 px-5 text-[15px] font-medium text-white shadow-[0_8px_20px_-8px_rgba(194,65,12,.7)] transition-colors hover:bg-octa-500 disabled:bg-fg/10 disabled:text-fg-3 disabled:shadow-none"
+                  >
+                    {deploying ? <Loader2 size={16} className="animate-spin" /> : <Rocket size={16} strokeWidth={1.75} />}
+                    {deploying ? "Deploying…" : liveUrl ? "Deploy update" : "Deploy"}
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
           <div className="relative min-h-0 flex-1 overflow-hidden bg-canvas-2">
-            {selected ? (
-              <div className="flex h-full justify-center overflow-auto p-0 data-[framed=true]:p-6" data-framed={device !== "desktop"}>
-                <iframe
+            {firstBuild ? (
+              <BuildStage progress={progress} siteName={site.slug ? `${site.slug}.${sitesDomain}` : "your-site.octacore.app"} />
+            ) : selected ? (
+              <div className={`flex h-full justify-center overflow-auto ${device !== "desktop" ? "p-6" : ""}`}>
+                <motion.iframe
                   key={selected.id}
+                  initial={reduce ? false : { opacity: 0, scale: 0.995 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                   src={`/preview/${selected.id}`}
                   title={`${site.title ?? "Site"} preview`}
                   sandbox="allow-scripts allow-forms allow-popups allow-modals"
                   style={{ width: DEVICES.find((d) => d.id === device)!.width }}
                   className={`h-full max-w-full bg-white transition-[width] duration-500 ease-[var(--ease-spring)] ${
-                    device === "desktop" ? "" : "rounded-[18px] shadow-float ring-1 ring-hairline"
+                    device === "desktop" ? "" : "rounded-[22px] shadow-float ring-1 ring-hairline"
                   }`}
                 />
               </div>
             ) : (
-              !pending && <div className="grid h-full place-items-center px-6 text-center text-[15px] text-fg-3">Your preview will appear here.</div>
+              <div className="grid h-full place-items-center px-6 text-center text-[15px] text-fg-3">
+                Your preview will appear here.
+              </div>
             )}
-
             <AnimatePresence>
-              {pending && (
-                <motion.div
-                  initial={reduce ? false : { opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={reduce ? undefined : { opacity: 0, y: 16 }}
-                  transition={{ type: "spring", stiffness: 120, damping: 20 }}
-                  className={`absolute inset-x-4 bottom-4 mx-auto max-w-[720px] overflow-hidden rounded-[18px] ${
-                    selected ? "material shadow-float ring-1 ring-hairline" : "top-4 bg-elevated shadow-soft ring-1 ring-hairline"
-                  }`}
-                >
-                  <p role="status" className="flex h-12 items-center gap-3 border-b border-hairline px-4 text-[14px] font-medium">
-                    <Pulse reduce={!!reduce} />
-                    {pending.code ? `Writing your site · ${lines} lines` : "Designing your site"}
-                  </p>
-                  <pre
-                    aria-hidden
-                    className={`overflow-hidden whitespace-pre-wrap break-all px-4 py-3 font-mono text-[12px] leading-[1.55] text-fg-2 ${selected ? "h-40" : "h-[calc(100%-3rem)]"} [mask-image:linear-gradient(to_bottom,transparent,black_40%)] flex flex-col justify-end`}
-                  >
-                    {pending.code.split("\n").slice(-60).join("\n") || " "}
-                  </pre>
-                </motion.div>
-              )}
+              {stream && latest && <EditOverlay progress={progress} note={note?.summary ?? ""} />}
             </AnimatePresence>
           </div>
         </section>
@@ -446,6 +382,146 @@ export function Builder({
   );
 }
 
+function DeploysPanel({
+  site,
+  liveUrl,
+  liveVersion,
+  deployments,
+  deploying,
+  copied,
+  sitesDomain,
+  number,
+  onCopy,
+  onRestore,
+  onAddressSaved,
+}: {
+  site: Site;
+  liveUrl: string | null;
+  liveVersion: string | null;
+  deployments: Deployment[];
+  deploying: string | null;
+  copied: boolean;
+  sitesDomain: string;
+  number: (id: string) => number;
+  onCopy: (url: string) => void;
+  onRestore: (versionId: string) => void;
+  onAddressSaved: () => void;
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
+      {liveUrl ? (
+        <div className="rounded-[20px] bg-elevated p-4 shadow-soft ring-1 ring-hairline">
+          <p className="flex items-center gap-2 text-[13px] text-fg-2">
+            <LiveBadge /> Version {liveVersion ? number(liveVersion) : "—"}
+          </p>
+          <a
+            href={liveUrl}
+            target="_blank"
+            rel="noopener"
+            className="mt-2 block truncate text-[16px] font-semibold tracking-[-0.01em] hover:text-octa-600"
+          >
+            {liveUrl.replace("https://", "")}
+          </a>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => onCopy(liveUrl)}
+              className="flex h-11 items-center gap-2 rounded-full bg-fg/[.06] px-4 text-[14px] font-medium hover:bg-fg/10"
+            >
+              {copied ? <Check size={15} /> : <Copy size={15} strokeWidth={1.5} />} {copied ? "Copied" : "Copy link"}
+            </button>
+            <a
+              href={liveUrl}
+              target="_blank"
+              rel="noopener"
+              className="flex h-11 items-center gap-2 rounded-full bg-fg/[.06] px-4 text-[14px] font-medium hover:bg-fg/10"
+            >
+              <ExternalLink size={15} strokeWidth={1.5} /> Visit
+            </a>
+          </div>
+          <AddressEditor siteId={site.id} slug={site.slug!} domain={sitesDomain} onSaved={onAddressSaved} />
+        </div>
+      ) : (
+        <div className="rounded-[20px] border border-dashed border-hairline p-5 text-center">
+          <p className="text-[15px] font-medium">Not live yet</p>
+          <p className="mt-1 text-[14px] text-fg-2">Deploy your site to get a link you can share with anyone.</p>
+        </div>
+      )}
+
+      {deployments.length > 0 && (
+        <>
+          <h2 className="mt-7 px-1 text-[12px] font-medium text-fg-3">History</h2>
+          <ol className="relative mt-3 space-y-1 border-l border-hairline pl-4">
+            {deployments.map((d, i) => (
+              <li key={d.id} className="relative flex min-h-14 items-center gap-3 py-2 text-[14px]">
+                <span
+                  className={`absolute -left-[21px] size-2.5 rounded-full ring-4 ring-canvas ${i === 0 ? "bg-emerald-500" : "bg-fg/20"}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">Version {number(d.versionId)}</p>
+                  <p className="text-[12px] text-fg-3">{day.format(d.createdAt)}</p>
+                </div>
+                {i === 0 ? (
+                  <LiveBadge />
+                ) : (
+                  d.versionId !== liveVersion && (
+                    <button
+                      onClick={() => onRestore(d.versionId)}
+                      disabled={!!deploying}
+                      className="h-9 rounded-full px-3 text-[13px] font-medium text-octa-600 hover:bg-octa-600/10 disabled:opacity-50"
+                    >
+                      {deploying === d.versionId ? "Restoring…" : "Restore"}
+                    </button>
+                  )
+                )}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Segmented<T extends string>({
+  id,
+  value,
+  onChange,
+  options,
+  iconOnly,
+}: {
+  id: string;
+  value: T;
+  onChange: (value: T) => void;
+  options: { id: T; label: string; icon?: React.ReactNode }[];
+  iconOnly?: boolean;
+}) {
+  return (
+    <div role="radiogroup" className="flex rounded-full bg-fg/[.06] p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          role="radio"
+          aria-checked={value === o.id}
+          aria-label={iconOnly ? o.label : undefined}
+          title={iconOnly ? o.label : undefined}
+          onClick={() => onChange(o.id)}
+          className={`relative flex h-9 items-center justify-center rounded-full text-[13px] font-medium transition-colors ${iconOnly ? "w-10" : "px-3.5"} ${
+            value === o.id ? "text-fg" : "text-fg-2 hover:text-fg"
+          }`}
+        >
+          {value === o.id && (
+            <motion.span
+              layoutId={`seg-${id}`}
+              className="absolute inset-0 rounded-full bg-elevated shadow-soft"
+              transition={{ type: "spring", stiffness: 420, damping: 34 }}
+            />
+          )}
+          <span className="relative">{iconOnly ? o.icon : o.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 function EmptyState({ site, stalled, onRetry }: { site: Site; stalled: boolean; onRetry: () => void }) {
   if (site.status === "generating" && !stalled) {
     return <p className="px-1 text-[14px] text-fg-2">Still building — refresh in a moment.</p>;
@@ -454,7 +530,10 @@ function EmptyState({ site, stalled, onRetry }: { site: Site; stalled: boolean; 
     <div className="rounded-[18px] bg-elevated p-4 ring-1 ring-hairline">
       <p className="text-[15px] font-medium">This build didn&apos;t finish</p>
       <p className="mt-1 text-[14px] text-fg-2">{site.prompt}</p>
-      <button onClick={onRetry} className="mt-3 h-11 rounded-full bg-octa-600 px-5 text-[15px] font-medium text-white hover:bg-octa-500">
+      <button
+        onClick={onRetry}
+        className="mt-3 h-11 rounded-full bg-octa-600 px-5 text-[15px] font-medium text-white hover:bg-octa-500"
+      >
         Try again
       </button>
     </div>
@@ -536,7 +615,11 @@ function AddressEditor({ siteId, slug, domain, onSaved }: { siteId: string; slug
         >
           {saving ? "Saving…" : "Save"}
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="h-11 rounded-full px-4 text-[14px] font-medium text-fg-2 hover:bg-fg/5">
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="h-11 rounded-full px-4 text-[14px] font-medium text-fg-2 hover:bg-fg/5"
+        >
           Cancel
         </button>
       </div>
@@ -549,48 +632,5 @@ function LiveBadge() {
     <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[12px] font-medium text-emerald-700 dark:text-emerald-400">
       <span className="size-1.5 rounded-full bg-emerald-500" /> Live
     </span>
-  );
-}
-
-function Pulse({ reduce }: { reduce: boolean }) {
-  return (
-    <motion.span
-      aria-hidden
-      className="size-2 shrink-0 rounded-full bg-octa-600"
-      animate={reduce ? undefined : { opacity: [1, 0.25, 1] }}
-      transition={{ duration: 1.2, repeat: Infinity }}
-    />
-  );
-}
-
-function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-  iconOnly,
-}: {
-  value: T;
-  onChange: (value: T) => void;
-  options: { id: T; label: string; icon?: React.ReactNode }[];
-  iconOnly?: boolean;
-}) {
-  return (
-    <div role="radiogroup" className="flex rounded-full bg-fg/[.06] p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          role="radio"
-          aria-checked={value === o.id}
-          aria-label={iconOnly ? o.label : undefined}
-          title={iconOnly ? o.label : undefined}
-          onClick={() => onChange(o.id)}
-          className={`flex h-9 items-center justify-center rounded-full text-[13px] font-medium transition-colors ${iconOnly ? "w-10" : "px-3.5"} ${
-            value === o.id ? "bg-elevated text-fg shadow-soft" : "text-fg-2 hover:text-fg"
-          }`}
-        >
-          {iconOnly ? o.icon : o.label}
-        </button>
-      ))}
-    </div>
   );
 }
