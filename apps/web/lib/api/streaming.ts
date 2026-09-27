@@ -5,7 +5,7 @@
 import { createAuth } from "@/lib/auth/auth";
 import { userMessage } from "@/lib/ai/content";
 import { eventStreamResponse, openaiStream } from "@/lib/ai/openai";
-import { addMessage, createConversation, getConversation, listMessages } from "@/lib/chat/store";
+import { addMessage, createConversation, deleteLastReply, getConversation, listMessages } from "@/lib/chat/store";
 import { CREATE_INSTRUCTIONS, EDIT_INSTRUCTIONS, createInput, editInput } from "@/lib/sites/prompts";
 import { DAILY_GENERATION_LIMIT, countRecentGenerations, getLatestVersion, getSite, logGeneration, setSiteStatus } from "@/lib/sites/store";
 import { parseAttachments } from "@/lib/attachments";
@@ -35,22 +35,37 @@ function failure(error: unknown) {
 async function chat(request: Request, env: CloudflareEnv) {
   const session = await createAuth(env).api.getSession({ headers: request.headers });
   if (!session) return Response.json({ error: "Log in to chat." }, { status: 401 });
-  const body = (await request.json().catch(() => ({}))) as { conversationId?: unknown; message?: unknown; attachments?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    conversationId?: unknown;
+    message?: unknown;
+    attachments?: unknown;
+    regenerate?: unknown;
+  };
   const { conversationId } = body;
-  const attachments = await resolveAttachments(env.DB, session.user.id, body.attachments);
-  let text = typeof body.message === "string" ? body.message.trim() : "";
-  if (!text && attachments.length) text = attachments.length === 1 ? "Take a look at this file." : "Take a look at these files.";
-  if (!text) return Response.json({ error: "Write a message first." }, { status: 400 });
-  if (text.length > 20_000) return Response.json({ error: "That message is too long." }, { status: 400 });
 
   let id: string;
-  if (typeof conversationId === "string") {
-    if (!(await getConversation(env.DB, conversationId, session.user.id))) return Response.json({ error: "Chat not found." }, { status: 404 });
+  if (body.regenerate === true) {
+    // Answer the last message again: drop the previous reply, keep everything else.
+    if (typeof conversationId !== "string" || !(await getConversation(env.DB, conversationId, session.user.id))) {
+      return Response.json({ error: "Chat not found." }, { status: 404 });
+    }
     id = conversationId;
+    await deleteLastReply(env.DB, id);
   } else {
-    id = await createConversation(env.DB, session.user.id, text);
+    const attachments = await resolveAttachments(env.DB, session.user.id, body.attachments);
+    let text = typeof body.message === "string" ? body.message.trim() : "";
+    if (!text && attachments.length) text = attachments.length === 1 ? "Take a look at this file." : "Take a look at these files.";
+    if (!text) return Response.json({ error: "Write a message first." }, { status: 400 });
+    if (text.length > 20_000) return Response.json({ error: "That message is too long." }, { status: 400 });
+
+    if (typeof conversationId === "string") {
+      if (!(await getConversation(env.DB, conversationId, session.user.id))) return Response.json({ error: "Chat not found." }, { status: 404 });
+      id = conversationId;
+    } else {
+      id = await createConversation(env.DB, session.user.id, text);
+    }
+    await addMessage(env.DB, id, "user", text, attachments);
   }
-  await addMessage(env.DB, id, "user", text, attachments);
   const history = (await listMessages(env.DB, id))
     .slice(-HISTORY)
     .map((m) => (m.role === "user" ? userMessage(m.content, m.attachments) : { role: m.role, content: m.content }));

@@ -53,3 +53,13 @@ export async function addMessage(
 export async function deleteConversation(db: D1Database, id: string, userId: string) {
   await db.prepare(`delete from conversation where id = ? and userId = ?`).bind(id, userId).run();
 }
+
+// Drops the latest reply so it can be generated again.
+export async function deleteLastReply(db: D1Database, conversationId: string) {
+  await db
+    .prepare(
+      `delete from message where id = (select id from message where conversationId = ? order by createdAt desc limit 1) and role = 'assistant'`,
+    )
+    .bind(conversationId)
+    .run();
+}

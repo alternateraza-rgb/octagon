@@ -35,3 +35,25 @@ export function eventStreamResponse(body: ReadableStream<Uint8Array>, headers?: 
     },
   });
 }
+
+// One short, non-streamed completion; returns its text. Used for small helpers like follow-up ideas.
+export async function completeText(
+  env: CloudflareEnv,
+  { model, instructions, input }: { model: string; instructions: string; input: string | InputMessage[] },
+) {
+  const res = await fetch(`${env.OPENAI_BASE_URL}/responses`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${env.OPENAI_API_KEY}` },
+    body: JSON.stringify({ model, instructions, input, reasoning: { effort: "low" } }),
+  });
+  const body = (await res.json().catch(() => null)) as {
+    output?: { type: string; content?: { type: string; text?: string }[] }[];
+    error?: { message?: string };
+  } | null;
+  if (!res.ok || !body) throw new Error(body?.error?.message ?? `OpenAI request failed (${res.status})`);
+  return (body.output ?? [])
+    .filter((o) => o.type === "message")
+    .flatMap((o) => o.content ?? [])
+    .map((c) => c.text ?? "")
+    .join("");
+}

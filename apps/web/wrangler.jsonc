@@ -39,6 +39,8 @@
   "vars": {
     "OPENAI_MODEL": "gpt-6-sol",
     "OPENAI_CHAT_MODEL": "gpt-6-sol",
+    // Small helpers such as follow-up suggestions.
+    "OPENAI_FAST_MODEL": "gpt-6-luna",
     "SITES_DOMAIN": "octacore.app",
     "OPENAI_BASE_URL": "https://api.openai.com/v1"
   },
