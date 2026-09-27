@@ -26,6 +26,10 @@
     {
       // Deployed sites, keyed by slug.
       "binding": "SITES"
+    },
+    {
+      // Uploaded images, logos and PDFs, served at /u/<id>.
+      "binding": "UPLOADS"
     }
   ],
   // <slug>.octacore.app serves deployed sites (needs a proxied `*` DNS record on the zone).

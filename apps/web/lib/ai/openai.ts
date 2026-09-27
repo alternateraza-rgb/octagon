@@ -1,4 +1,8 @@
-export type InputMessage = { role: "user" | "assistant"; content: string };
+export type InputContent =
+  | { type: "input_text"; text: string }
+  | { type: "input_image"; image_url: string; detail: "auto" }
+  | { type: "input_file"; file_url: string };
+export type InputMessage = { role: "user" | "assistant"; content: string | InputContent[] };
 
 // Starts a streamed OpenAI Responses call and returns its raw server-sent-event stream.
 // The Worker hands this body to the browser untouched: Cloudflare pipes it natively, while

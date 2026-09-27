@@ -1,5 +1,7 @@
 export type Conversation = { id: string; title: string; updatedAt: number };
-export type ChatMessage = { id: string; role: "user" | "assistant"; content: string };
+import { parseAttachments, type Attachment } from "@/lib/attachments";
+
+export type ChatMessage = { id: string; role: "user" | "assistant"; content: string; attachments: Attachment[] };
 
 export async function listConversations(db: D1Database, userId: string, limit = 30) {
   const { results } = await db
@@ -15,10 +17,10 @@ export function getConversation(db: D1Database, id: string, userId: string) {
 
 export async function listMessages(db: D1Database, conversationId: string) {
   const { results } = await db
-    .prepare(`select id, role, content from message where conversationId = ? order by createdAt asc`)
+    .prepare(`select id, role, content, attachments from message where conversationId = ? order by createdAt asc`)
     .bind(conversationId)
-    .all<ChatMessage>();
-  return results;
+    .all<Omit<ChatMessage, "attachments"> & { attachments: string | null }>();
+  return results.map((m) => ({ ...m, attachments: parseAttachments(m.attachments) }));
 }
 
 export async function createConversation(db: D1Database, userId: string, firstMessage: string) {
@@ -32,12 +34,18 @@ export async function createConversation(db: D1Database, userId: string, firstMe
   return id;
 }
 
-export async function addMessage(db: D1Database, conversationId: string, role: ChatMessage["role"], content: string) {
+export async function addMessage(
+  db: D1Database,
+  conversationId: string,
+  role: ChatMessage["role"],
+  content: string,
+  attachments: Attachment[] = [],
+) {
   const now = Date.now();
   await db.batch([
     db
-      .prepare(`insert into message (id, conversationId, role, content, createdAt) values (?, ?, ?, ?, ?)`)
-      .bind(crypto.randomUUID(), conversationId, role, content, now),
+      .prepare(`insert into message (id, conversationId, role, content, attachments, createdAt) values (?, ?, ?, ?, ?, ?)`)
+      .bind(crypto.randomUUID(), conversationId, role, content, attachments.length ? JSON.stringify(attachments) : null, now),
     db.prepare(`update conversation set updatedAt = ? where id = ?`).bind(now, conversationId),
   ]);
 }
