@@ -112,6 +112,8 @@ export function Payouts({ seller }: { seller: Seller }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const rejected = seller?.verification === "rejected";
+  // A Whop account Octacore can't take its fee through (e.g. Octacore's own business).
+  const unlinked = seller?.verification === "unlinked";
 
   async function start() {
     setBusy(true);
@@ -132,12 +134,20 @@ export function Payouts({ seller }: { seller: Seller }) {
         <ShieldCheck size={26} strokeWidth={1.5} />
       </span>
       <h3 className="mt-5 text-[21px] font-semibold tracking-[-0.02em]">
-        {rejected ? "Whop couldn't verify you" : seller ? "Finish setting up payouts" : "Get paid for your sites"}
+        {rejected
+          ? "Whop couldn't verify you"
+          : unlinked
+            ? "Link a payout account"
+            : seller
+              ? "Finish setting up payouts"
+              : "Get paid for your sites"}
       </h3>
       <p className="mt-2 text-[15px] leading-[1.47] text-fg-2">
         {rejected
           ? "Whop, our payments partner, wasn't able to verify your identity. Open Whop to see why and try again."
-          : "Your clients pay you directly through Whop, our payments partner. Verify your identity once — it takes about three minutes — and every sale lands in your Whop balance."}
+          : unlinked
+            ? "The Whop account on file isn't linked to Octacore, so client payments can't be split with it. Set up a linked payout account — it takes about three minutes."
+            : "Your clients pay you directly through Whop, our payments partner. Verify your identity once — it takes about three minutes — and every sale lands in your Whop balance."}
       </p>
       <ul className="mt-5 space-y-2 text-[15px] text-fg-2">
         {["You set the price and optional monthly hosting", "Octacore keeps 10%, you keep the rest", "Withdraw to your bank any time"].map(
@@ -158,7 +168,7 @@ export function Payouts({ seller }: { seller: Seller }) {
         disabled={busy}
         className="mt-7 h-12 w-full rounded-full bg-octa-600 text-[15px] font-medium text-white transition-colors hover:bg-octa-500 disabled:opacity-60"
       >
-        {busy ? "Opening Whop…" : rejected ? "Open Whop" : seller ? "Continue verification" : "Set up payouts"}
+        {busy ? "Opening Whop…" : rejected ? "Open Whop" : unlinked ? "Set up payouts" : seller ? "Continue verification" : "Set up payouts"}
       </button>
     </div>
   );

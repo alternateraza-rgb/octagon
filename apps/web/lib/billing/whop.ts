@@ -109,6 +109,8 @@ export const cancelMembership = (env: CloudflareEnv, id: string, mode: "immediat
 
 export type WhopAccount = {
   id: string;
+  // Set for connected accounts (the platform they belong to); null for standalone businesses.
+  parent_account?: { id?: string } | null;
   verification?: { individual?: { status?: string } | null; business?: { status?: string } | null } | null;
 };
 
@@ -169,7 +171,8 @@ export async function createSaleCheckout(
       ? { plan_type: "one_time", initial_price: price }
       : { plan_type: "renewal", billing_period: 30, renewal_price: price, initial_price: 0 }),
     application_fee_amount: feeCents / 100,
-    title,
+    // Whop caps plan titles at 30 characters.
+    title: title.length > 30 ? `${title.slice(0, 29).trimEnd()}…` : title,
     visibility: "hidden",
   };
   type Checkout = { id: string; purchase_url: string; plan?: { id: string } | null };
