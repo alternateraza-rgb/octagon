@@ -22,9 +22,6 @@ export type VersionSummary = {
 };
 export type Deployment = { id: string; versionId: string; createdAt: number };
 
-// Caps OpenAI spend per account until billing is wired. Edits count too.
-export const DAILY_GENERATION_LIMIT = 40;
-
 const SITE_COLUMNS = `s.id, s.userId, s.title, s.prompt, s.attachments, s.status, s.slug, s.deployedVersionId, s.createdAt, s.updatedAt,
   (select v.id from site_version v where v.siteId = s.id order by v.createdAt desc limit 1) as latestVersionId`;
 
@@ -75,22 +72,6 @@ export async function listDeployments(db: D1Database, siteId: string) {
     .bind(siteId)
     .all<Deployment>();
   return results;
-}
-
-export async function countRecentGenerations(db: D1Database, userId: string) {
-  const since = Date.now() - 24 * 60 * 60 * 1000;
-  const row = await db
-    .prepare(`select count(*) as n from generation where userId = ? and createdAt > ?`)
-    .bind(userId, since)
-    .first<{ n: number }>();
-  return row?.n ?? 0;
-}
-
-export async function logGeneration(db: D1Database, userId: string) {
-  await db
-    .prepare(`insert into generation (id, userId, createdAt) values (?, ?, ?)`)
-    .bind(crypto.randomUUID(), userId, Date.now())
-    .run();
 }
 
 export async function createSite(db: D1Database, userId: string, prompt: string, attachments: Attachment[] = []) {

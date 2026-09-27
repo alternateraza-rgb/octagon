@@ -3,6 +3,7 @@
 // the Worker entry so file bodies stream straight to and from storage without passing through Next.
 import { createAuth } from "@/lib/auth/auth";
 import type { Attachment } from "@/lib/attachments";
+import { checkLimit } from "@/lib/billing/entitlements";
 
 const TYPES: Record<string, string> = {
   "image/png": "png",
@@ -40,6 +41,8 @@ async function upload(request: Request, env: CloudflareEnv) {
   if (!size || !request.body) return Response.json({ error: "That file is empty." }, { status: 400 });
   if (size > MAX_UPLOAD_BYTES) return Response.json({ error: "Files can be up to 10 MB." }, { status: 413 });
 
+  const refused = await checkLimit(env, session.user, "storage", size);
+  if (refused) return refused;
   const since = Date.now() - 24 * 60 * 60 * 1000;
   const count = await env.DB.prepare(`select count(*) as n from upload where userId = ? and createdAt > ?`)
     .bind(session.user.id, since)
@@ -50,12 +53,17 @@ async function upload(request: Request, env: CloudflareEnv) {
   try {
     name = decodeURIComponent(request.headers.get("x-file-name") ?? "file");
   } catch {}
-  name = name.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 120) || "file";
+  name =
+    name
+      .replace(/[\u0000-\u001f]/g, "")
+      .trim()
+      .slice(0, 120) || "file";
 
   const id = `${randomId()}.${ext}`;
   // Links always use the main domain over HTTPS, so they work from every deployed site.
   const { hostname, origin } = new URL(request.url);
-  const base = hostname === env.SITES_DOMAIN || hostname.endsWith(`.${env.SITES_DOMAIN}`) ? `https://${env.SITES_DOMAIN}` : origin;
+  const base =
+    hostname === env.SITES_DOMAIN || hostname.endsWith(`.${env.SITES_DOMAIN}`) ? `https://${env.SITES_DOMAIN}` : origin;
   const url = `${base}/u/${id}`;
   await env.UPLOADS.put(id, request.body, { metadata: { type } });
   await env.DB.prepare(`insert into upload (id, userId, name, type, size, url, createdAt) values (?, ?, ?, ?, ?, ?, ?)`)

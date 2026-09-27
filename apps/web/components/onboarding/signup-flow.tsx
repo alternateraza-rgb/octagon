@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowRight, Check, Lock, Mail } from "lucide-react";
+import { ArrowRight, Lock, Mail } from "lucide-react";
 import { OctacoreLogo } from "@octacore/ui/logo";
 import { TEMPLATES } from "@/components/templates";
 import { TemplateFrame } from "@/components/templates/frame";
@@ -11,29 +11,13 @@ import { CropMarks } from "@/components/marketing/motion";
 import { authClient } from "@/lib/auth/client";
 import { Field } from "@/components/auth/field";
 import { templateFontVariables } from "@/lib/template-fonts";
+import { PlanCards } from "@/components/billing/plan-cards";
+import { BillingDialog } from "@/components/billing/billing-dialog";
+import type { PlanId } from "@/lib/billing/plans";
 
 type Step = "account" | "plan" | "done";
-type Billing = "annual" | "monthly";
 
 const display = "font-[family-name:var(--font-display)] font-semibold";
-
-const PLANS = [
-  {
-    id: "free",
-    name: "Free",
-    price: { annual: 0, monthly: 0 },
-    tagline: "Try Octacore and build your first sites.",
-    features: ["3 draft websites", "All templates", "General AI chat", "Manual ownership transfer"],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: { annual: 29, monthly: 36 },
-    tagline: "Everything you need to run a web business.",
-    features: ["Unlimited websites", "Sell with checkout links", "Custom domains", "Octa Agents", "Lower platform fees"],
-    featured: true,
-  },
-] as const;
 
 export function SignupFlow({ prompt, templateSlug }: { prompt?: string; templateSlug?: string }) {
   const reduce = useReducedMotion();
@@ -42,8 +26,7 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [billing, setBilling] = useState<Billing>("annual");
-  const [plan, setPlan] = useState<(typeof PLANS)[number]["id"]>("pro");
+  const [checkout, setCheckout] = useState<PlanId | null>(null);
 
   const template = TEMPLATES.find((t) => t.slug === templateSlug) ?? TEMPLATES[0];
   const Preview = template.Component;
@@ -56,7 +39,11 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
     const { error } = await authClient.signUp.email({ email, password, name: email.split("@")[0] });
     setSubmitting(false);
     if (error) {
-      setError(error.code?.startsWith("USER_ALREADY_EXISTS") ? "An account with this email already exists. Log in instead." : error.message ?? "Something went wrong. Try again.");
+      setError(
+        error.code?.startsWith("USER_ALREADY_EXISTS")
+          ? "An account with this email already exists. Log in instead."
+          : (error.message ?? "Something went wrong. Try again."),
+      );
       return;
     }
     setStep("plan");
@@ -144,82 +131,12 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
             {step === "plan" && (
               <motion.section key="plan" {...slide}>
                 <h1 className={`${display} text-[40px] leading-[1] tracking-[-0.04em]`}>Choose your plan</h1>
-                <p className="mt-3 text-[16px] text-fg-2">Pays for itself with one sale. Change or cancel anytime.</p>
-
-                <div role="radiogroup" aria-label="Billing period" className="mt-7 inline-flex rounded-full bg-black/5 p-1 text-[14px]">
-                  {(["annual", "monthly"] as const).map((b) => (
-                    <button
-                      key={b}
-                      role="radio"
-                      aria-checked={billing === b}
-                      onClick={() => setBilling(b)}
-                      className={`rounded-full px-4 py-1.5 transition-colors ${billing === b ? "bg-white shadow-sm" : "text-fg-2"}`}
-                    >
-                      {b === "annual" ? "Yearly · save 20%" : "Monthly"}
-                    </button>
-                  ))}
+                <p className="mt-3 text-[16px] text-fg-2">Pays for itself with one sale. Cancel anytime.</p>
+                <div className="mt-7">
+                  <PlanCards compact onChoose={setCheckout} />
                 </div>
-
-                <div role="radiogroup" aria-label="Plan" className="mt-5 space-y-3">
-                  {PLANS.map((p) => {
-                    const selected = plan === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => setPlan(p.id)}
-                        className={`relative block w-full p-5 text-left transition-colors ${
-                          selected
-                            ? p.id === "pro"
-                              ? "grain bg-octa-600 text-white"
-                              : "bg-white ring-2 ring-[#0f0f0f]"
-                            : "bg-white ring-1 ring-black/10 hover:ring-black/25"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="flex items-center gap-2 text-[17px] font-medium">
-                              {p.name}
-                              {"featured" in p && (
-                                <span className={`rounded-full px-2 py-0.5 text-[11px] ${selected ? "bg-white/20" : "bg-octa-600/10 text-octa-700"}`}>
-                                  Most popular
-                                </span>
-                              )}
-                            </p>
-                            <p className={`mt-1 text-[14px] ${selected && p.id === "pro" ? "text-white/85" : "text-fg-2"}`}>{p.tagline}</p>
-                          </div>
-                          <p className={`${display} shrink-0 text-[36px] leading-none tracking-[-0.04em]`}>
-                            ${p.price[billing]}
-                            <span className="text-[15px]">/mo</span>
-                          </p>
-                        </div>
-                        <ul className="mt-4 grid grid-cols-1 gap-x-4 gap-y-1.5 text-[14px] sm:grid-cols-2">
-                          {p.features.map((f) => (
-                            <li key={f} className="flex items-center gap-2">
-                              <Check size={14} strokeWidth={2.5} className="shrink-0" /> {f}
-                            </li>
-                          ))}
-                        </ul>
-                      </button>
-                    );
-                  })}
-                </div>
-                {plan === "pro" && billing === "annual" && (
-                  <p className="mt-3 text-[13px] text-fg-3">Billed annually at $348. Taxes may apply.</p>
-                )}
-                {/* TODO: Pro → Stripe Checkout session; Free → straight to the builder. */}
-                <button
-                  onClick={() => setStep("done")}
-                  className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0f0f0f] text-[15px] font-medium text-white transition-colors hover:bg-octa-700"
-                >
-                  {plan === "free" ? "Start for free" : "Continue to payment"} <ArrowRight size={16} />
-                </button>
-                <p className="mt-4 text-[13px] text-fg-3">
-                  Running an agency?{" "}
-                  <a href="mailto:sales@octacore.site" className="text-fg underline underline-offset-4">
-                    Talk to us
-                  </a>
+                <p className="mt-4 flex items-center gap-1.5 text-[13px] text-fg-3">
+                  <Lock size={12} /> Secure payments by Whop. Billed monthly.
                 </p>
               </motion.section>
             )}
@@ -227,9 +144,7 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
             {step === "done" && (
               <motion.section key="done" {...slide}>
                 <h1 className={`${display} text-[40px] leading-[1] tracking-[-0.04em]`}>You&apos;re in.</h1>
-                <p className="mt-3 text-[16px] text-fg-2">
-                  Your idea is waiting in the builder.
-                </p>
+                <p className="mt-3 text-[16px] text-fg-2">Your plan is active and your idea is waiting in the builder.</p>
                 {prompt && <p className="mt-6 bg-white p-4 text-[15px] ring-1 ring-black/10">{prompt}</p>}
                 <Link
                   href={prompt ? `/dashboard/sites?prompt=${encodeURIComponent(prompt)}` : "/dashboard"}
@@ -242,9 +157,14 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
           </AnimatePresence>
         </main>
 
-        <p className="text-[12px] text-fg-3">
-          By continuing you agree to Octacore&apos;s Terms of Service and Privacy Policy.
-        </p>
+        <BillingDialog
+          open={!!checkout}
+          plan={checkout}
+          theme="light"
+          onClose={() => setCheckout(null)}
+          onActivated={() => setStep("done")}
+        />
+        <p className="text-[12px] text-fg-3">By continuing you agree to Octacore&apos;s Terms of Service and Privacy Policy.</p>
       </div>
 
       <aside className="grain relative hidden flex-col justify-between overflow-hidden bg-octa-700 p-12 text-white lg:flex">

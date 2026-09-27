@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Bot,
+  CreditCard,
   Globe,
   LogOut,
   Menu,
@@ -25,7 +26,9 @@ import { authClient } from "@/lib/auth/client";
 import type { Conversation } from "@/lib/chat/store";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { CommandPalette } from "./command-palette";
-import { WorkspaceProvider, useWorkspace, type Me, type Theme } from "./workspace";
+import { WorkspaceProvider, useWorkspace, type BillingSummary, type Me, type Theme } from "./workspace";
+import { Paywall } from "@/components/billing/paywall";
+import { planById } from "@/lib/billing/plans";
 
 const NAV = [
   {
@@ -51,17 +54,19 @@ export function AppShell({
   conversations,
   theme,
   collapsed,
+  billing,
   children,
 }: {
   me: Me;
   conversations: Conversation[];
   theme: Theme;
   collapsed: boolean;
+  billing: BillingSummary;
   children: React.ReactNode;
 }) {
   return (
     <ToastProvider>
-      <WorkspaceProvider me={me} initialConversations={conversations} initialTheme={theme}>
+      <WorkspaceProvider me={me} initialConversations={conversations} initialTheme={theme} initialBilling={billing}>
         <Frame initialCollapsed={collapsed}>{children}</Frame>
       </WorkspaceProvider>
     </ToastProvider>
@@ -69,7 +74,7 @@ export function AppShell({
 }
 
 function Frame({ initialCollapsed, children }: { initialCollapsed: boolean; children: React.ReactNode }) {
-  const { theme } = useWorkspace();
+  const { theme, billing } = useWorkspace();
   const pathname = usePathname();
   const reduce = useReducedMotion();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
@@ -165,7 +170,8 @@ function Frame({ initialCollapsed, children }: { initialCollapsed: boolean; chil
             transition={{ type: "spring", stiffness: 260, damping: 30 }}
             className="h-full"
           >
-            {children}
+            {/* Without a plan, everything but Settings shows the plans (pay upfront). */}
+            {billing.active || pathname.startsWith("/dashboard/settings") ? children : <Paywall />}
           </motion.div>
         </main>
       </div>
@@ -398,9 +404,18 @@ const THEMES: { id: Theme; label: string; icon: typeof Sun }[] = [
 function AccountMenu({ collapsed }: { collapsed: boolean }) {
   const router = useRouter();
   const reduce = useReducedMotion();
-  const { me, theme, setTheme } = useWorkspace();
+  const { me, theme, setTheme, billing } = useWorkspace();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const planLabel = billing.comped
+    ? "Agency · complimentary"
+    : billing.active
+      ? `${planById(billing.plan)?.name} plan`
+      : billing.pausesAt
+        ? "Plan ended"
+        : "No plan yet";
+  // Shown once most of the month's builds are used.
+  const share = billing.builds && billing.builds.limit ? billing.builds.used / billing.builds.limit : 0;
 
   useEffect(() => {
     if (!open) return;
@@ -460,6 +475,14 @@ function AccountMenu({ collapsed }: { collapsed: boolean }) {
             <div className="my-2 h-px bg-hairline" />
             <Link
               role="menuitem"
+              href="/dashboard/settings#billing"
+              onClick={() => setOpen(false)}
+              className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-[14px] text-fg-2 hover:bg-fg/5 hover:text-fg"
+            >
+              <CreditCard size={16} strokeWidth={1.5} /> Plan and billing
+            </Link>
+            <Link
+              role="menuitem"
               href="/dashboard/settings"
               onClick={() => setOpen(false)}
               className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-[14px] text-fg-2 hover:bg-fg/5 hover:text-fg"
@@ -493,10 +516,36 @@ function AccountMenu({ collapsed }: { collapsed: boolean }) {
         {!collapsed && (
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[14px] font-medium">{me.name}</span>
-            <span className="block truncate text-[12px] text-fg-3">Free plan</span>
+            <span className={`block truncate text-[12px] ${billing.active ? "text-fg-3" : "text-octa-600"}`}>{planLabel}</span>
           </span>
+        )}
+        {!collapsed && share >= 0.8 && (
+          <UsageRing share={share} label={`${billing.builds!.used} of ${billing.builds!.limit} builds used`} />
         )}
       </button>
     </div>
+  );
+}
+
+function UsageRing({ share, label }: { share: number; label: string }) {
+  const r = 9;
+  const c = 2 * Math.PI * r;
+  return (
+    <span title={label} aria-label={label} role="img" className="mr-1 shrink-0">
+      <svg width="24" height="24" viewBox="0 0 24 24" className="-rotate-90">
+        <circle cx="12" cy="12" r={r} fill="none" strokeWidth="3" className="stroke-fg/10" />
+        <circle
+          cx="12"
+          cy="12"
+          r={r}
+          fill="none"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - Math.min(share, 1))}
+          className={share >= 1 ? "stroke-red-500" : "stroke-octa-600"}
+        />
+      </svg>
+    </span>
   );
 }

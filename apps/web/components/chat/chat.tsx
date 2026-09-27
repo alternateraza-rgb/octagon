@@ -13,6 +13,7 @@ import { useWorkspace } from "@/components/app/workspace";
 import { Composer } from "./composer";
 import { Markdown } from "./markdown";
 import { useSmoothText } from "./use-smooth-text";
+import { noticeUpgrade } from "@/lib/billing/client";
 
 type Message = Pick<ChatMessage, "role" | "content"> & { id: string; failed?: boolean; attachments?: ChatMessage["attachments"] };
 
@@ -95,6 +96,7 @@ export function Chat({ conversationId, initialMessages = [] }: { conversationId?
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        noticeUpgrade(res.status, data);
         throw new Error(data?.error ?? "Something went wrong.");
       }
       const newId = res.headers.get("x-conversation-id");

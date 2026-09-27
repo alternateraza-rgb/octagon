@@ -7,7 +7,8 @@ import { userMessage } from "@/lib/ai/content";
 import { eventStreamResponse, openaiStream } from "@/lib/ai/openai";
 import { addMessage, createConversation, deleteLastReply, getConversation, listMessages } from "@/lib/chat/store";
 import { CREATE_INSTRUCTIONS, EDIT_INSTRUCTIONS, createInput, editInput } from "@/lib/sites/prompts";
-import { DAILY_GENERATION_LIMIT, countRecentGenerations, getLatestVersion, getSite, logGeneration, setSiteStatus } from "@/lib/sites/store";
+import { getLatestVersion, getSite, setSiteStatus } from "@/lib/sites/store";
+import { checkLimit, logUsage } from "@/lib/billing/entitlements";
 import { parseAttachments } from "@/lib/attachments";
 import { resolveAttachments } from "@/lib/uploads";
 
@@ -42,6 +43,8 @@ async function chat(request: Request, env: CloudflareEnv) {
     regenerate?: unknown;
   };
   const { conversationId } = body;
+  const refused = await checkLimit(env, session.user, "chat");
+  if (refused) return refused;
 
   let id: string;
   if (body.regenerate === true) {
@@ -54,18 +57,21 @@ async function chat(request: Request, env: CloudflareEnv) {
   } else {
     const attachments = await resolveAttachments(env.DB, session.user.id, body.attachments);
     let text = typeof body.message === "string" ? body.message.trim() : "";
-    if (!text && attachments.length) text = attachments.length === 1 ? "Take a look at this file." : "Take a look at these files.";
+    if (!text && attachments.length)
+      text = attachments.length === 1 ? "Take a look at this file." : "Take a look at these files.";
     if (!text) return Response.json({ error: "Write a message first." }, { status: 400 });
     if (text.length > 20_000) return Response.json({ error: "That message is too long." }, { status: 400 });
 
     if (typeof conversationId === "string") {
-      if (!(await getConversation(env.DB, conversationId, session.user.id))) return Response.json({ error: "Chat not found." }, { status: 404 });
+      if (!(await getConversation(env.DB, conversationId, session.user.id)))
+        return Response.json({ error: "Chat not found." }, { status: 404 });
       id = conversationId;
     } else {
       id = await createConversation(env.DB, session.user.id, text);
     }
     await addMessage(env.DB, id, "user", text, attachments);
   }
+  await logUsage(env.DB, session.user.id, "chat");
   const history = (await listMessages(env.DB, id))
     .slice(-HISTORY)
     .map((m) => (m.role === "user" ? userMessage(m.content, m.attachments) : { role: m.role, content: m.content }));
@@ -87,9 +93,8 @@ async function startVersion(request: Request, env: CloudflareEnv, id: string) {
 
   const site = await getSite(env.DB, id, session.user.id);
   if (!site) return Response.json({ error: "Site not found." }, { status: 404 });
-  if ((await countRecentGenerations(env.DB, session.user.id)) >= DAILY_GENERATION_LIMIT) {
-    return Response.json({ error: `You've hit today's limit of ${DAILY_GENERATION_LIMIT} builds. Try again tomorrow.` }, { status: 429 });
-  }
+  const refused = await checkLimit(env, session.user, "builds");
+  if (refused) return refused;
 
   const latest = await getLatestVersion(env.DB, id);
   let spec;
@@ -106,7 +111,7 @@ async function startVersion(request: Request, env: CloudflareEnv, id: string) {
     spec = { model: env.OPENAI_MODEL, instructions: CREATE_INSTRUCTIONS, input };
   }
 
-  await logGeneration(env.DB, session.user.id);
+  await logUsage(env.DB, session.user.id, "build");
   await setSiteStatus(env.DB, id, "generating");
   try {
     return eventStreamResponse(await openaiStream(env, spec));

@@ -35,14 +35,18 @@
   // <slug>.octacore.app serves deployed sites (needs a proxied `*` DNS record on the zone).
   "routes": [{ "pattern": "*.octacore.app/*", "zone_name": "octacore.app" }],
   "workers_dev": true,
-  // OPENAI_API_KEY is a secret: set it in the dashboard (type Secret) or with `wrangler secret put`.
+  // OPENAI_API_KEY, BETTER_AUTH_SECRET, PEXELS_API_KEY, RESEND_API_KEY, WHOP_API_KEY and WHOP_WEBHOOK_SECRET are secrets: set it in the dashboard (type Secret) or with `wrangler secret put`.
   "vars": {
     "OPENAI_MODEL": "gpt-6-sol",
     "OPENAI_CHAT_MODEL": "gpt-6-sol",
     // Small helpers such as follow-up suggestions.
     "OPENAI_FAST_MODEL": "gpt-6-luna",
     "SITES_DOMAIN": "octacore.app",
-    "OPENAI_BASE_URL": "https://api.openai.com/v1"
+    "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    // Accounts that always get Agency limits without paying (comma-separated).
+    "COMPED_EMAILS": "fortnitekhan111@gmail.com"
   },
+  // Daily billing job: pauses live sites 14 days after a plan ends.
+  "triggers": { "crons": ["17 3 * * *"] },
   "observability": { "enabled": true }
 }

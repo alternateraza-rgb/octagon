@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { AttachButton, PendingTray } from "@/components/uploads/attachments";
 import { useUploads } from "@/components/uploads/use-uploads";
+import { noticeUpgrade } from "@/lib/billing/client";
 
 const EXAMPLES = [
   "A barbershop in LA called Barber Boys — bold and fun",
@@ -36,6 +37,7 @@ export function NewSiteForm({ initialPrompt = "", autoFocus }: { initialPrompt?:
       return;
     }
     setCreating(false);
+    noticeUpgrade(res?.status, body);
     setError(body?.error ?? "Something went wrong. Try again.");
   }
 

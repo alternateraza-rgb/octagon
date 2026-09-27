@@ -2,6 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getSession } from "@/lib/auth/server";
 import { createSite, listSites } from "@/lib/sites/store";
 import { resolveAttachments } from "@/lib/uploads";
+import { checkLimit } from "@/lib/billing/entitlements";
 
 // Creates the site record; the builder then streams its first version from /versions.
 export async function POST(request: Request) {
@@ -13,6 +14,8 @@ export async function POST(request: Request) {
   if (text.length > 2000) return Response.json({ error: "Keep your description under 2,000 characters." }, { status: 400 });
 
   const { env } = await getCloudflareContext({ async: true });
+  const refused = await checkLimit(env, session.user, "builds");
+  if (refused) return refused;
   const files = await resolveAttachments(env.DB, session.user.id, attachments);
   return Response.json({ id: await createSite(env.DB, session.user.id, text, files) });
 }
