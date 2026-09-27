@@ -1,7 +1,7 @@
 const RULES = `Output only one complete HTML document, starting with <!doctype html>. No markdown fences, no commentary.
 - Everything inline: one <style> block, and a <script> only if it earns its place. No external CSS or JS frameworks. Google Fonts <link>s are allowed.
 - Real, specific copy written for this business. Never lorem ipsum.
-- Images: only https://picsum.photos/seed/<one-word-seed>/<width>/<height>, with descriptive alt text.
+- Images: use plenty of photos, and only this form: /img?q=<search>&w=<width>&h=<height> (root-relative, exactly as written). <search> is a specific 2–6 word stock-photo search for what that image should show, written for this business and section (e.g. "barber giving skin fade", "barbershop interior leather chairs", "fresh croissants on bakery counter"), URL-encoded. To get different photos for the same search add &n=1, &n=2 and so on. Stock photos can't show real people, celebrities, film characters or brands, so when asked for those use a fitting generic scene instead. Also usable as CSS background-image urls. Always write descriptive alt text.
 - Premium, modern design: strong typography, generous whitespace, a restrained palette that fits the business. Responsive from 375px to 1440px with no horizontal scroll.
 - Semantic, accessible HTML. Put the business name in <title>.`;
 
