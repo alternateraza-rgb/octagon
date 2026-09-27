@@ -5,11 +5,15 @@ import { PlacesError, searchPlaces, type Country } from "@/lib/agents/places";
 import { rank } from "@/lib/agents/score";
 import { createSearch, knownPlaceIds, listLeads, saveLeads } from "@/lib/agents/store";
 
+const AGENTS_ENABLED = false;
+
 const clean = (value: unknown, max: number) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 // Lead Finder: one niche in one place. Finds businesses on Google without a website of their own,
 // ranks them, and keeps the new ones as leads. Only new leads count against the plan.
 export async function POST(request: Request) {
+  // Octa Agents is "Coming soon": the search stays off until Lead Finder ships.
+  if (!AGENTS_ENABLED) return Response.json({ error: "Not found." }, { status: 404 });
   const session = await getSession();
   if (!session) return Response.json({ error: "Log in to find leads." }, { status: 401 });
   const body = (await request.json().catch(() => ({}))) as { niche?: unknown; location?: unknown; country?: unknown };

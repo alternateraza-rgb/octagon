@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowUpRight, Check, Lock, X } from "lucide-react";
 import { planById, type PlanId } from "@/lib/billing/plans";
 import { fetchBillingStatus, type BillingStatus } from "@/lib/billing/client";
 import { PlanCards } from "./plan-cards";
+import { clearWhopOverlays } from "@/lib/billing/whop-overlays";
 
 // Whop's embed touches `window` as it loads, so it only ever renders in the browser.
 const WhopCheckoutEmbed = dynamic(() => import("@whop/checkout/react").then((m) => m.WhopCheckoutEmbed), {
@@ -321,18 +322,6 @@ function Activating({ slow }: { slow: boolean }) {
       </p>
     </div>
   );
-}
-
-// Removes any overlay Whop's embed left open, and the scroll lock it puts on the page.
-function clearWhopOverlays() {
-  document.querySelectorAll<HTMLDialogElement>("dialog[data-whop-checkout-overlay]").forEach((overlay) => {
-    try {
-      overlay.close();
-    } catch {}
-    overlay.remove();
-  });
-  document.body.style.overflow = "";
-  document.documentElement.style.overflow = "";
 }
 
 function EmbedLoading() {

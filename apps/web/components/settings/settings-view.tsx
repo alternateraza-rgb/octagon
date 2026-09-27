@@ -7,6 +7,7 @@ import {
   Check,
   CreditCard,
   KeyRound,
+  Landmark,
   Laptop,
   Monitor,
   Moon,
@@ -21,6 +22,7 @@ import { authClient } from "@/lib/auth/client";
 import { useWorkspace, type Theme } from "@/components/app/workspace";
 import { useToast } from "@/components/ui/toast";
 import { Billing } from "@/components/billing/billing-section";
+import { PayoutsCard } from "@/components/sales/payouts-card";
 import { Card } from "./card";
 import type { BillingStatus } from "@/lib/billing/client";
 
@@ -29,6 +31,7 @@ const SECTIONS = [
   { id: "security", label: "Security", icon: ShieldCheck },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "billing", label: "Plan and billing", icon: CreditCard },
+  { id: "payouts", label: "Payouts", icon: Landmark },
   { id: "danger", label: "Delete account", icon: Trash2 },
 ] as const;
 
@@ -38,10 +41,12 @@ export function SettingsView({
   user,
   currentSessionId,
   billing,
+  seller,
 }: {
   user: { name: string; email: string; createdAt: number };
   currentSessionId: string;
   billing: BillingStatus;
+  seller: { verification: string; canSell: boolean } | null;
 }) {
   const reduce = useReducedMotion();
   const [active, setActive] = useState<string>("profile");
@@ -115,6 +120,7 @@ export function SettingsView({
             <Security email={user.email} currentSessionId={currentSessionId} />
             <Appearance />
             <Billing status={billing} />
+            <PayoutsCard seller={seller} />
             <Danger email={user.email} />
           </div>
         </div>

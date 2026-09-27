@@ -85,6 +85,12 @@ export function LoginForm({ next }: { next: string }) {
           Create an account
         </Link>
       </p>
+      <p className="mt-2 text-[13px] text-fg-3">
+        Bought a website from an Octacore builder?{" "}
+        <Link href="/owner/sign-in" className="text-fg underline underline-offset-4">
+          Sign in with your email
+        </Link>
+      </p>
     </>
   );
 }

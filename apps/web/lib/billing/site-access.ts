@@ -6,10 +6,12 @@ export const PAUSED_PAGE = `<!doctype html><html lang="en"><head><meta charset="
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;font:17px/1.5 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#f9f8f6;color:#0f0f0f;text-align:center}h1{font-size:40px;letter-spacing:-.03em;margin:0 0 8px}p{color:#5f5f63;margin:0}a{color:#c2410c}</style></head>
 <body><main><h1>This site is paused</h1><p>It'll be back soon. Own this site? <a href="https://octacore.app/dashboard/settings#billing">Renew your plan ›</a></p></main></body></html>`;
 
-// Swaps every live site of the account for the paused page. Returns how many were paused.
+// Swaps every live site of the account (apart from client-hosted ones) for the paused page. Returns how many were paused.
 export async function pauseSites(env: CloudflareEnv, userId: string) {
   const { results } = await env.DB.prepare(
-    `select id, slug from site where userId = ? and slug is not null and deployedVersionId is not null and pausedAt is null`,
+    // Sites a client pays hosting for stay up: they're paused only when that hosting ends.
+    `select s.id, s.slug from site s where s.userId = ? and s.slug is not null and s.deployedVersionId is not null
+       and s.pausedAt is null and not exists (select 1 from sale where sale.id = s.saleId and sale.hostingStatus = 'active')`,
   )
     .bind(userId)
     .all<{ id: string; slug: string }>();
@@ -25,7 +27,9 @@ export async function pauseSites(env: CloudflareEnv, userId: string) {
 export async function resumeSites(env: CloudflareEnv, userId: string) {
   const { results } = await env.DB.prepare(
     `select s.id, s.slug, v.html from site s join site_version v on v.id = s.deployedVersionId
-     where s.userId = ? and s.slug is not null and s.pausedAt is not null`,
+     where s.userId = ? and s.slug is not null and s.pausedAt is not null
+       -- A site paused because its client stopped paying for hosting comes back with that hosting.
+       and not exists (select 1 from sale where sale.id = s.saleId and sale.hostingStatus = 'ended')`,
   )
     .bind(userId)
     .all<{ id: string; slug: string; html: string }>();
