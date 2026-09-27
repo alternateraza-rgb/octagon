@@ -7,7 +7,7 @@ import { getSession } from "@/lib/auth/server";
 export const metadata = { title: "Log in" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const { next } = await searchParams;
+  const { next, reset } = await searchParams;
   // Only same-site paths, so ?next= can't bounce people to another site.
   const target = typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
   if (await getSession()) redirect(target);
@@ -24,6 +24,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           Welcome back
         </h1>
         <p className="mt-3 text-[16px] text-fg-2">Log in to keep building.</p>
+        {reset && (
+          <p role="status" className="mt-6 rounded-[12px] bg-emerald-500/10 px-4 py-3 text-[14px] text-emerald-800">
+            Your password was changed. Log in with the new one.
+          </p>
+        )}
         <LoginForm next={target} />
       </main>
     </div>

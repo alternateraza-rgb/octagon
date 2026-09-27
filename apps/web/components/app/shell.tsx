@@ -14,6 +14,7 @@ import {
   Moon,
   PanelLeft,
   Pencil,
+  Settings,
   Search,
   SquarePen,
   Sun,
@@ -35,6 +36,7 @@ const NAV = [
   },
   { href: "/dashboard/sites", label: "Websites", icon: Globe, match: (p: string) => p.startsWith("/dashboard/sites") },
   { href: "/dashboard/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/dashboard/agents"), soon: true },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/dashboard/settings") },
 ];
 
 // Pages that share one transition, so switching chats or a new chat getting its URL doesn't re-animate.
@@ -456,6 +458,14 @@ function AccountMenu({ collapsed }: { collapsed: boolean }) {
               ))}
             </div>
             <div className="my-2 h-px bg-hairline" />
+            <Link
+              role="menuitem"
+              href="/dashboard/settings"
+              onClick={() => setOpen(false)}
+              className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-[14px] text-fg-2 hover:bg-fg/5 hover:text-fg"
+            >
+              <Settings size={16} strokeWidth={1.5} /> Settings
+            </Link>
             <button
               role="menuitem"
               onClick={async () => {

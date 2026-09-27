@@ -21,7 +21,11 @@ export function LoginForm({ next }: { next: string }) {
     const { error } = await authClient.signIn.email({ email, password });
     if (error) {
       setSubmitting(false);
-      setError(error.code === "INVALID_EMAIL_OR_PASSWORD" ? "That email and password don’t match." : error.message ?? "Something went wrong. Try again.");
+      setError(
+        error.code === "INVALID_EMAIL_OR_PASSWORD"
+          ? "That email and password don’t match."
+          : (error.message ?? "Something went wrong. Try again."),
+      );
       return;
     }
     router.replace(next);
@@ -58,6 +62,11 @@ export function LoginForm({ next }: { next: string }) {
           }}
           invalid={!!error}
         />
+        <div className="-mt-1 flex justify-end">
+          <Link href="/forgot-password" className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
+            Forgot password?
+          </Link>
+        </div>
         {error && (
           <p id="auth-error" role="alert" className="text-[13px] text-red-700">
             {error}
