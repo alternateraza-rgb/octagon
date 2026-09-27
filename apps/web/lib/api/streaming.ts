@@ -8,6 +8,8 @@ import { eventStreamResponse, openaiStream } from "@/lib/ai/openai";
 import { addMessage, createConversation, deleteLastReply, getConversation, listMessages } from "@/lib/chat/store";
 import { CREATE_INSTRUCTIONS, EDIT_INSTRUCTIONS, createInput, editInput } from "@/lib/sites/prompts";
 import { getLatestVersion, getSite, setSiteStatus } from "@/lib/sites/store";
+import { CREATE_NOTE, EDIT_NOTE, collapseBlocks, hasPlaceholders } from "@/lib/agents/inject";
+import { getLeadForSite } from "@/lib/agents/store";
 import { checkLimit, logUsage } from "@/lib/billing/entitlements";
 import { parseAttachments } from "@/lib/attachments";
 import { resolveAttachments } from "@/lib/uploads";
@@ -103,11 +105,16 @@ async function startVersion(request: Request, env: CloudflareEnv, id: string) {
     const change = typeof body.instruction === "string" ? body.instruction.trim() : "";
     if (!change) return Response.json({ error: "Describe the change you want." }, { status: 400 });
     if (change.length > 2000) return Response.json({ error: "Keep your request under 2,000 characters." }, { status: 400 });
-    const input = [userMessage(editInput(latest.html, change, attachments), attachments)];
+    // Blocks of real business data go to the model as placeholders, and come back on save.
+    const html = collapseBlocks(latest.html);
+    const ask = hasPlaceholders(html) ? `${change}\n\n${EDIT_NOTE}` : change;
+    const input = [userMessage(editInput(html, ask, attachments), attachments)];
     spec = { model: env.OPENAI_MODEL, instructions: EDIT_INSTRUCTIONS, input };
   } else {
     const attachments = parseAttachments(site.attachments);
-    const input = [userMessage(createInput(site.prompt, attachments), attachments)];
+    const lead = await getLeadForSite(env.DB, id);
+    const prompt = lead ? `${site.prompt}\n\n${CREATE_NOTE}` : site.prompt;
+    const input = [userMessage(createInput(prompt, attachments), attachments)];
     spec = { model: env.OPENAI_MODEL, instructions: CREATE_INSTRUCTIONS, input };
   }
 

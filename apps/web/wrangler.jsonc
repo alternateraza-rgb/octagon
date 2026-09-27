@@ -35,7 +35,7 @@
   // <slug>.octacore.app serves deployed sites (needs a proxied `*` DNS record on the zone).
   "routes": [{ "pattern": "*.octacore.app/*", "zone_name": "octacore.app" }],
   "workers_dev": true,
-  // OPENAI_API_KEY, BETTER_AUTH_SECRET, PEXELS_API_KEY, RESEND_API_KEY, WHOP_API_KEY and WHOP_WEBHOOK_SECRET are secrets: set it in the dashboard (type Secret) or with `wrangler secret put`.
+  // OPENAI_API_KEY, BETTER_AUTH_SECRET, PEXELS_API_KEY, GOOGLE_PLACES_API_KEY, RESEND_API_KEY, WHOP_API_KEY and WHOP_WEBHOOK_SECRET are secrets: set it in the dashboard (type Secret) or with `wrangler secret put`.
   "vars": {
     "OPENAI_MODEL": "gpt-6-sol",
     "OPENAI_CHAT_MODEL": "gpt-6-sol",

@@ -4,6 +4,8 @@ import { cleanHtml } from "@/lib/sites/prompts";
 import { addVersion, getLatestVersion, getSite, setSiteStatus } from "@/lib/sites/store";
 import { parseAttachments } from "@/lib/attachments";
 import { resolveAttachments } from "@/lib/uploads";
+import { applyBlocks, extractBlocks } from "@/lib/agents/inject";
+import { getLeadForSite, heldBlocks } from "@/lib/agents/store";
 
 // Saves a build the browser received from /api/sites/:id/versions, or records that it failed.
 export async function POST(request: Request, { params }: RouteContext<"/api/sites/[id]/versions/save">) {
@@ -20,11 +22,17 @@ export async function POST(request: Request, { params }: RouteContext<"/api/site
     return Response.json({ ok: true });
   }
   if (body.text.length > 1_000_000) return Response.json({ error: "That page is too large." }, { status: 413 });
-  const firstBuild = !(await getLatestVersion(env.DB, id));
+  const previous = await getLatestVersion(env.DB, id);
+  const firstBuild = !previous;
   const instruction = typeof body.instruction === "string" && body.instruction.trim() ? body.instruction.trim().slice(0, 2000) : site.prompt;
   const attachments = firstBuild ? parseAttachments(site.attachments) : await resolveAttachments(env.DB, session.user.id, body.attachments);
   try {
-    const { html, title, summary, next } = cleanHtml(body.text);
+    const { html: page, title, summary, next } = cleanHtml(body.text);
+    // Sites built from a lead get their real Google reviews and contact details put (back) in.
+    const lead = await getLeadForSite(env.DB, id);
+    const html = !lead
+      ? page
+      : applyBlocks(page, previous ? extractBlocks(previous.html) : await heldBlocks(env, id), { insertMissing: firstBuild });
     return Response.json({ versionId: await addVersion(env.DB, id, instruction, html, title, attachments, { summary, next }) });
   } catch (error) {
     await setSiteStatus(env.DB, id, (await getLatestVersion(env.DB, id)) ? "ready" : "failed");

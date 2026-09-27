@@ -110,14 +110,16 @@ export function countUsage(db: D1Database, userId: string, meter: Meter, since: 
       );
     case "storage":
       return count(db.prepare(`select sum(size) as n from upload where userId = ?`).bind(userId));
+    case "leads":
+      return count(db.prepare(`select count(*) as n from lead where userId = ? and createdAt >= ?`).bind(userId, since));
   }
 }
 
 export async function getUsage(db: D1Database, userId: string, since: number): Promise<Usage> {
-  const [builds, chat, sites, storage] = await Promise.all(
-    (["builds", "chat", "sites", "storage"] as const).map((m) => countUsage(db, userId, m, since)),
+  const [builds, chat, sites, storage, leads] = await Promise.all(
+    (["builds", "chat", "sites", "storage", "leads"] as const).map((m) => countUsage(db, userId, m, since)),
   );
-  return { builds, chat, sites, storage };
+  return { builds, chat, sites, storage, leads };
 }
 
 export function logUsage(db: D1Database, userId: string, kind: "build" | "chat") {
@@ -168,5 +170,20 @@ export async function checkLimit(
       );
     }
   }
+  if (meter === "leads") {
+    const today = await count(
+      env.DB.prepare(`select count(*) as n from agent_search where userId = ? and createdAt >= ?`).bind(user.id, Date.now() - DAY),
+    );
+    if (today >= DAILY_BURST.search) {
+      return Response.json({ error: "That's a lot of searches for one day. Try again tomorrow." }, { status: 429 });
+    }
+  }
   return null;
+}
+
+// How many more of a meter the account can use this period (0 without a plan).
+export async function remaining(env: CloudflareEnv, user: { id: string; email: string }, meter: Meter) {
+  const access = await getAccess(env, user);
+  if (!access.active || !access.limits) return 0;
+  return Math.max(0, access.limits[meter] - (await countUsage(env.DB, user.id, meter, access.periodStart)));
 }
