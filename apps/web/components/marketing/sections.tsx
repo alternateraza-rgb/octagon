@@ -401,7 +401,7 @@ const FAQS = [
   ["Where are the websites hosted?", "On Octacore's global infrastructure, with SSL, a free octacore.site address and support for custom domains."],
   ["What do Octa Agents do?", "They find local businesses on Google that don't have a website yet, rank them, and build each one a site with its real details and reviews — so you spend your time closing, not prospecting. Automated outreach is coming soon."],
   ["Can I bring my own clients?", "Of course. Agents are optional, and you can transfer a site without using Octacore checkout."],
-  ["Can I get a refund?", "Yes. If Octacore isn't right for you, email us within 14 days of your first payment for a full refund. You can cancel any time from Settings, and your plan runs to the end of the period. See the refund policy for details."],
+  ["Can I get a refund?", `All purchases are generally non-refundable. If you're having an issue using Octacore and want a refund, contact us directly at ${SUPPORT_EMAIL}. You can cancel any time from Settings, and your plan stays active to the end of the period you've paid for.`],
   ["How do I get help?", `Email ${SUPPORT_EMAIL} with your question and we'll get back to you.`],
 ];
 
@@ -476,7 +476,7 @@ const FOOTER: Record<string, [string, string][]> = {
   Company: [["About us", "#"], ["Affiliate program", "#"], ["Careers", "#"], ["Contact", `mailto:${SUPPORT_EMAIL}`]],
   Product: [["Builder", "/#stack"], ["Hosting", "/#stack"], ["Octa Agents", "/#agents"], ["Templates", "/#templates"]],
   Resources: [["Guides", "#"], ["Help center", `mailto:${SUPPORT_EMAIL}`], ["Changelog", "#"], ["Status", "#"]],
-  Legal: [["Privacy policy", "/privacy"], ["Refund policy", "/refunds"], ["Terms of service", "#"], ["Acceptable use", "#"]],
+  Legal: [["Privacy policy", "/privacy"], ["Refund policy", "/refunds"], ["Terms of service", "/terms"], ["Acceptable use", "/terms#acceptable-use"]],
 };
 
 export function Footer() {
