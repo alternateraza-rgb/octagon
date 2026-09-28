@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { Conversation } from "@/lib/chat/store";
 import type { Interval, PlanId } from "@/lib/billing/plans";
 import { onUpgrade, type BillingStatus } from "@/lib/billing/client";
 import { BillingDialog } from "@/components/billing/billing-dialog";
+import type { Onboarding } from "@/lib/onboarding/steps";
 
 export type Theme = "system" | "light" | "dark";
 export type Me = { name: string; email: string };
@@ -39,6 +40,14 @@ type Workspace = {
   setBilling: (billing: BillingSummary) => void;
   // Opens plan selection and checkout, optionally straight into one plan's checkout.
   openBilling: (options?: { plan?: PlanId; interval?: Interval; message?: string }) => void;
+  // First-run tour and the "Getting started" checklist.
+  onboarding: Onboarding;
+  tourOpen: boolean;
+  openTour: () => void;
+  closeTour: () => void;
+  dismissChecklist: () => void;
+  // Re-reads checklist progress (the layout isn't re-rendered as people move between pages).
+  refreshOnboarding: () => void;
 };
 
 const WorkspaceContext = createContext<Workspace | null>(null);
@@ -54,12 +63,14 @@ export function WorkspaceProvider({
   initialConversations,
   initialTheme,
   initialBilling,
+  initialOnboarding,
   children,
 }: {
   me: Me;
   initialConversations: Conversation[];
   initialTheme: Theme;
   initialBilling: BillingSummary;
+  initialOnboarding: Onboarding;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -67,6 +78,19 @@ export function WorkspaceProvider({
   const [theme, setThemeState] = useState(initialTheme);
   const [billing, setBilling] = useState(initialBilling);
   const [dialog, setDialog] = useState<{ plan?: PlanId; interval?: Interval; message?: string } | null>(null);
+  const [onboarding, setOnboarding] = useState(initialOnboarding);
+  // New builders get the tour once, as soon as they arrive with a plan (never over the paywall).
+  const [tourOpen, setTourOpen] = useState(!initialOnboarding.tourDone && initialBilling.active);
+
+  const onboardingAction = (action: "tourDone" | "dismissChecklist") =>
+    fetch("/api/onboarding", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) }).catch(
+      () => null,
+    );
+
+  const refreshOnboarding = useCallback(async () => {
+    const res = await fetch("/api/onboarding").catch(() => null);
+    if (res?.ok) setOnboarding((await res.json()) as Onboarding);
+  }, []);
 
   // Any request refused for the plan's limits opens the upgrade dialog with the reason.
   useEffect(() => onUpgrade((notice) => setDialog({ message: notice.error })), []);
@@ -87,6 +111,22 @@ export function WorkspaceProvider({
         billing,
         setBilling,
         openBilling: (options) => setDialog(options ?? {}),
+        onboarding,
+        tourOpen,
+        openTour: () => setTourOpen(true),
+        closeTour: () => {
+          setTourOpen(false);
+          // Finishing or skipping both count: it only opens by itself once.
+          if (!onboarding.tourDone) {
+            setOnboarding((o) => ({ ...o, tourDone: true }));
+            onboardingAction("tourDone");
+          }
+        },
+        dismissChecklist: () => {
+          setOnboarding((o) => ({ ...o, checklistDismissed: true }));
+          onboardingAction("dismissChecklist");
+        },
+        refreshOnboarding,
       }}
     >
       {children}
