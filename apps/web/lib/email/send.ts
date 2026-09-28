@@ -1,5 +1,6 @@
 // Sends email through Resend's HTTP API from the verified octacore.app domain.
-export type Email = { to: string; subject: string; html: string; text: string };
+// `from` overrides the sender name; it must stay on the verified octacore.app domain.
+export type Email = { to: string; subject: string; html: string; text: string; from?: string };
 
 const FROM = "Octacore <hello@octacore.app>";
 
@@ -11,7 +12,7 @@ export async function sendEmail(env: CloudflareEnv, email: Email) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ from: FROM, ...email }),
+    body: JSON.stringify({ ...email, from: email.from ?? FROM }),
   });
   if (!res.ok) console.error("Resend rejected email", res.status, await res.text().catch(() => ""));
   return res.ok;
