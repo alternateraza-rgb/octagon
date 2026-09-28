@@ -164,7 +164,17 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
           onClose={() => setCheckout(null)}
           onActivated={() => setStep("done")}
         />
-        <p className="text-[12px] text-fg-3">By continuing you agree to Octacore&apos;s Terms of Service and Privacy Policy.</p>
+        <p className="text-[12px] text-fg-3">
+          By continuing you agree to Octacore&apos;s{" "}
+          <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-fg">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-fg">
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </div>
 
       <aside className="grain relative hidden flex-col justify-between overflow-hidden bg-octa-700 p-12 text-white lg:flex">
