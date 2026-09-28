@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight, Copy, ExternalLink, MoreHorizontal, Pencil, Search, Trash2 } from "lucide-react";
 import { NewSiteForm } from "@/components/builder/new-site-form";
+import { Checklist } from "@/components/onboarding/checklist";
 import { ConfirmDialog } from "@/components/ui/confirm";
 import { useToast } from "@/components/ui/toast";
 import type { SiteSummary } from "@/lib/sites/store";
@@ -79,6 +80,8 @@ export function SitesView({
         >
           <NewSiteForm initialPrompt={initialPrompt} autoFocus={!sites.length || !!initialPrompt} />
         </motion.div>
+
+        <Checklist className="mb-10 max-w-[760px]" />
 
         {sites.length > 0 && (
           <>

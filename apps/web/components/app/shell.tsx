@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Bot,
+  Compass,
   CreditCard,
   Globe,
   LogOut,
@@ -30,6 +31,8 @@ import { CommandPalette } from "./command-palette";
 import { WorkspaceProvider, useWorkspace, type BillingSummary, type Me, type Theme } from "./workspace";
 import { Paywall } from "@/components/billing/paywall";
 import { planById } from "@/lib/billing/plans";
+import { STEPS, doneCount, type Onboarding } from "@/lib/onboarding/steps";
+import { Tour } from "@/components/onboarding/tour/tour";
 
 const NAV = [
   {
@@ -57,6 +60,7 @@ export function AppShell({
   theme,
   collapsed,
   billing,
+  onboarding,
   children,
 }: {
   me: Me;
@@ -64,11 +68,18 @@ export function AppShell({
   theme: Theme;
   collapsed: boolean;
   billing: BillingSummary;
+  onboarding: Onboarding;
   children: React.ReactNode;
 }) {
   return (
     <ToastProvider>
-      <WorkspaceProvider me={me} initialConversations={conversations} initialTheme={theme} initialBilling={billing}>
+      <WorkspaceProvider
+        me={me}
+        initialConversations={conversations}
+        initialTheme={theme}
+        initialBilling={billing}
+        initialOnboarding={onboarding}
+      >
         <Frame initialCollapsed={collapsed}>{children}</Frame>
       </WorkspaceProvider>
     </ToastProvider>
@@ -76,7 +87,7 @@ export function AppShell({
 }
 
 function Frame({ initialCollapsed, children }: { initialCollapsed: boolean; children: React.ReactNode }) {
-  const { theme, billing } = useWorkspace();
+  const { theme, billing, refreshOnboarding } = useWorkspace();
   const pathname = usePathname();
   const reduce = useReducedMotion();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
@@ -102,6 +113,11 @@ function Frame({ initialCollapsed, children }: { initialCollapsed: boolean; chil
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Checklist progress changes as people build, publish and sell on other pages.
+  useEffect(() => {
+    refreshOnboarding();
+  }, [pathname, refreshOnboarding]);
 
   return (
     <div data-theme={theme === "system" ? undefined : theme} className="flex h-dvh overflow-hidden bg-canvas text-fg">
@@ -179,6 +195,7 @@ function Frame({ initialCollapsed, children }: { initialCollapsed: boolean; chil
       </div>
 
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      <Tour />
     </div>
   );
 }
@@ -294,6 +311,7 @@ function Sidebar({
         <div className="flex-1" />
       )}
 
+      {!collapsed && <GettingStarted onNavigate={onNavigate} />}
       <AccountMenu collapsed={collapsed} />
     </nav>
   );
@@ -406,7 +424,7 @@ const THEMES: { id: Theme; label: string; icon: typeof Sun }[] = [
 function AccountMenu({ collapsed }: { collapsed: boolean }) {
   const router = useRouter();
   const reduce = useReducedMotion();
-  const { me, theme, setTheme, billing } = useWorkspace();
+  const { me, theme, setTheme, billing, openTour } = useWorkspace();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const planLabel = billing.comped
@@ -475,6 +493,16 @@ function AccountMenu({ collapsed }: { collapsed: boolean }) {
               ))}
             </div>
             <div className="my-2 h-px bg-hairline" />
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                openTour();
+              }}
+              className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-[14px] text-fg-2 hover:bg-fg/5 hover:text-fg"
+            >
+              <Compass size={16} strokeWidth={1.5} /> Take the tour
+            </button>
             <Link
               role="menuitem"
               href="/dashboard/settings#billing"
@@ -526,6 +554,47 @@ function AccountMenu({ collapsed }: { collapsed: boolean }) {
         )}
       </button>
     </div>
+  );
+}
+
+// Sidebar shortcut to the "Getting started" checklist while there's still something to do.
+function GettingStarted({ onNavigate }: { onNavigate: () => void }) {
+  const { onboarding, billing } = useWorkspace();
+  const done = doneCount(onboarding);
+  if (!billing.active || onboarding.checklistDismissed || done === STEPS.length) return null;
+  return (
+    <Link
+      href="/dashboard/sites#getting-started"
+      onClick={onNavigate}
+      className="mt-3 flex h-11 items-center gap-2.5 rounded-[12px] bg-octa-600/[.08] px-3 text-[14px] font-medium text-fg transition-colors hover:bg-octa-600/[.13]"
+    >
+      <ProgressRing share={done / STEPS.length} />
+      Getting started
+      <span className="ml-auto text-[13px] font-normal tabular-nums text-fg-3">
+        {done}/{STEPS.length}
+      </span>
+    </Link>
+  );
+}
+
+function ProgressRing({ share }: { share: number }) {
+  const r = 8;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" className="-rotate-90" aria-hidden>
+      <circle cx="10" cy="10" r={r} fill="none" strokeWidth="2.5" className="stroke-fg/10" />
+      <circle
+        cx="10"
+        cy="10"
+        r={r}
+        fill="none"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - share)}
+        className="stroke-octa-600 transition-[stroke-dashoffset] duration-700 ease-[var(--ease-spring)]"
+      />
+    </svg>
   );
 }
 

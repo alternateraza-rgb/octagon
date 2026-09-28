@@ -10,6 +10,7 @@ import { CATEGORIES, PROMPTS, matchPrompts, type PromptCategory } from "@/lib/ch
 import { AttachmentList } from "@/components/uploads/attachments";
 import { useUploads } from "@/components/uploads/use-uploads";
 import { useWorkspace } from "@/components/app/workspace";
+import { Checklist } from "@/components/onboarding/checklist";
 import { Composer } from "./composer";
 import { Markdown } from "./markdown";
 import { useSmoothText } from "./use-smooth-text";
@@ -360,6 +361,7 @@ function EmptyState({ name, onPick }: { name: string; onPick: (text: string) => 
           ))}
         </AnimatePresence>
       </div>
+      <Checklist className="mt-10" />
     </div>
   );
 }

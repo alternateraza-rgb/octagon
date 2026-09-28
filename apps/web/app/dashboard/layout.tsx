@@ -6,6 +6,7 @@ import type { Theme } from "@/components/app/workspace";
 import { getSession } from "@/lib/auth/server";
 import { listConversations } from "@/lib/chat/store";
 import { countUsage, getAccess } from "@/lib/billing/entitlements";
+import { getOnboarding } from "@/lib/onboarding/store";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const session = await getSession();
@@ -13,7 +14,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   // Clients who bought a site have their own, simpler page.
   if ((session.user as { role?: string }).role === "owner") redirect("/owner");
   const [{ env }, jar] = await Promise.all([getCloudflareContext({ async: true }), cookies()]);
-  const [conversations, access] = await Promise.all([listConversations(env.DB, session.user.id), getAccess(env, session.user)]);
+  const [conversations, access, onboarding] = await Promise.all([
+    listConversations(env.DB, session.user.id),
+    getAccess(env, session.user),
+    getOnboarding(env.DB, session.user.id),
+  ]);
   const builds = access.limits
     ? { used: await countUsage(env.DB, session.user.id, "builds", access.periodStart), limit: access.limits.builds }
     : null;
@@ -25,6 +30,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       theme={theme === "light" || theme === "dark" ? (theme as Theme) : "system"}
       collapsed={jar.get("sidebar")?.value === "collapsed"}
       billing={{ plan: access.plan, interval: access.interval, active: access.active, comped: access.comped, pausesAt: access.pausesAt, builds }}
+      onboarding={onboarding}
     >
       {children}
     </AppShell>
