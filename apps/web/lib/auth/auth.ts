@@ -2,7 +2,14 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
 import { magicLink } from "better-auth/plugins";
 import { sendEmail } from "@/lib/email/send";
-import { ownerSignInEmail, ownerWelcomeEmail, passwordChangedEmail, resetPasswordEmail, welcomeEmail } from "@/lib/email/templates";
+import {
+  onboardingCallEmail,
+  ownerSignInEmail,
+  ownerWelcomeEmail,
+  passwordChangedEmail,
+  resetPasswordEmail,
+  welcomeEmail,
+} from "@/lib/email/templates";
 import { getSaleView } from "@/lib/sales/store";
 import { hashPassword, verifyPassword } from "./password";
 
@@ -62,6 +69,8 @@ export function createAuth(env: CloudflareEnv) {
         create: {
           after: async (user) => {
             await sendEmail(env, welcomeEmail({ to: user.email, name: user.name }));
+            // A personal invite from James to an onboarding call, right after the welcome.
+            await sendEmail(env, onboardingCallEmail({ to: user.email, name: user.name }));
           },
         },
       },

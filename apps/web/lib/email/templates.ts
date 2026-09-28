@@ -110,6 +110,48 @@ export function welcomeEmail({ to, name }: { to: string; name: string }): Email 
   };
 }
 
+// Sent with the welcome email: a personal invite from James to a free onboarding call.
+const ONBOARDING_URL = "https://calendly.com/jameshailey-octacore/30min";
+
+export function onboardingCallEmail({ to, name }: { to: string; name: string }): Email {
+  const agenda = [
+    "Set up your account and plan the way you'll use it",
+    "Build your first website together, live",
+    "Publish it and send your first checkout link",
+    "Answer anything you want to know about Octacore",
+  ]
+    .map((item) => `<span style="color:#c2410c">&#10003;</span>&nbsp; ${item}`)
+    .join("<br>");
+  const signature = `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:4px">
+  <tr>
+    <td style="vertical-align:middle;padding-right:14px">
+      <div style="width:44px;height:44px;border-radius:999px;background:#c2410c;color:#ffffff;font:600 16px/44px ${FONT};text-align:center;letter-spacing:0.02em">JH</div>
+    </td>
+    <td style="vertical-align:middle">
+      <div style="font:600 15px/1.3 ${FONT};color:#0f0f0f">James Hailey</div>
+      <div style="font:400 13px/1.4 ${FONT};color:#86868b">CTO, Octacore</div>
+    </td>
+  </tr>
+</table>`;
+  return {
+    to,
+    from: "James Hailey at Octacore <hello@octacore.app>",
+    subject: "Let's build your first site together",
+    html: layout({
+      preview: "Book a free 30-minute onboarding call with our CTO.",
+      title: "Let's build your first site together",
+      body: `Hi ${first(name)}, I'm James, CTO at Octacore. Thanks for joining. I'd love to get you set up properly, so I'm opening my calendar for a free 30-minute onboarding call, just you and me.<br><br>
+<span style="color:#0f0f0f;font-weight:600">On the call, we'll:</span><br>
+<span style="color:#0f0f0f">${agenda}</span><br><br>
+No prep needed. If you have a business in mind, bring its name and city and we'll build its site on the call.`,
+      button: { label: "Book your onboarding call", url: ONBOARDING_URL },
+      after: `${signature}<div style="margin-top:24px">Prefer to explore on your own? <a href="${ORIGIN}/dashboard/sites" style="color:#c2410c">Jump straight into the builder</a>. You can also just reply to this email with any questions.</div>`,
+      reason: "You're getting this because you created an Octacore account.",
+    }),
+    text: `Hi ${name.split(" ")[0] || "there"},\n\nI'm James, CTO at Octacore. Thanks for joining. I'd love to get you set up properly, so I'm opening my calendar for a free 30-minute onboarding call.\n\nOn the call, we'll:\n- Set up your account and plan the way you'll use it\n- Build your first website together, live\n- Publish it and send your first checkout link\n- Answer anything you want to know about Octacore\n\nBook a time: ${ONBOARDING_URL}\n\nNo prep needed. If you have a business in mind, bring its name and city and we'll build its site on the call.\n\nJames Hailey\nCTO, Octacore`,
+  };
+}
+
 const day = new Intl.DateTimeFormat("en", { month: "long", day: "numeric", timeZone: "UTC" });
 
 export function planActivatedEmail({
