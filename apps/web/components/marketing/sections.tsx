@@ -53,11 +53,28 @@ export function Stack() {
               client for their domain password.
             </p>
           </Reveal>
-          <CutIn delay={0.2} className="relative mt-12 grid max-w-[460px] grid-cols-[1fr_1.4fr]">
+          <CutIn delay={0.2} className="relative mt-12 grid max-w-[460px] grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
             <div className="grain grid aspect-square place-items-center bg-[#0f0f0f]">
               <OctacoreMark size={96} />
             </div>
-            <Photo id="photo-1695527081848-1e46c06e6458" alt="Salon owner with her new website" w={280} className="h-full" />
+            {/* A site that's live and paid for: the whole business in one tile, with nothing to load. */}
+            <div className="grain flex h-full min-w-0 flex-col justify-center gap-2 bg-octa-600 p-3 text-[#0f0f0f] sm:p-4">
+              <div className="flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-[11px] shadow-sm">
+                <Lock size={10} className="shrink-0 text-fg-3" />
+                <span className="min-w-0 truncate">atelier-noir.octacore.app</span>
+                <span className="ml-auto flex shrink-0 items-center gap-1 font-medium text-[#1a7f37]">
+                  <span className="size-1.5 rounded-full bg-[#1a7f37]" /> Live
+                </span>
+              </div>
+              <div className="rounded-[10px] bg-white p-3 shadow-sm">
+                <div className="flex items-center justify-between text-[11px] font-medium">
+                  Atelier Noir
+                  <span className="rounded-full bg-[#1a7f37]/10 px-1.5 py-0.5 text-[10px] text-[#1a7f37]">Paid</span>
+                </div>
+                <p className={`${display} mt-1 text-[22px] leading-none tracking-[-0.03em]`}>$2,400</p>
+                <p className="mt-1.5 text-[10px] text-fg-3">Handed over to the owner</p>
+              </div>
+            </div>
             <CropMarks />
           </CutIn>
         </div>
