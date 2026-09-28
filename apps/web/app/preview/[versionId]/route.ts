@@ -16,6 +16,7 @@ export async function GET(_request: Request, { params }: RouteContext<"/preview/
       "content-type": "text/html; charset=utf-8",
       "content-security-policy": `${SANDBOX_CSP}; frame-ancestors 'self'`,
       "cache-control": "private, max-age=31536000, immutable",
+      "x-robots-tag": "noindex",
     },
   });
 }

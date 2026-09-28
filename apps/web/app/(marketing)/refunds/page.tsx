@@ -4,6 +4,7 @@ import { DocLink, LegalPage, LegalSection, SupportLink } from "@/components/mark
 export const metadata: Metadata = {
   title: "Refund policy",
   description: "Octacore purchases are generally non-refundable. Here's how cancelling works and who to contact.",
+  alternates: { canonical: "/refunds" },
 };
 
 export default function RefundsPage() {

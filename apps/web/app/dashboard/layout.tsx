@@ -8,6 +8,8 @@ import { listConversations } from "@/lib/chat/store";
 import { countUsage, getAccess } from "@/lib/billing/entitlements";
 import { getOnboarding } from "@/lib/onboarding/store";
 
+export const metadata = { robots: { index: false } };
+
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const session = await getSession();
   if (!session) redirect("/login?next=/dashboard");

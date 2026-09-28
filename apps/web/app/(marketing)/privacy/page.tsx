@@ -21,6 +21,7 @@ const CONTENTS: [string, string][] = [
 export const metadata: Metadata = {
   title: "Privacy policy",
   description: "What Octacore collects, why, who it's shared with, and how to access or delete it.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

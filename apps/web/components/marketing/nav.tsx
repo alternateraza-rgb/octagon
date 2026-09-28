@@ -6,10 +6,11 @@ import { Menu, X } from "lucide-react";
 import { OctacoreLogo } from "@octacore/ui/logo";
 
 const LINKS = [
-  { href: "#stack", label: "Product" },
-  { href: "#templates", label: "Templates" },
-  { href: "#agents", label: "Octa Agents" },
-  { href: "#stories", label: "Customers" },
+  { href: "/features", label: "Features" },
+  { href: "/templates", label: "Templates" },
+  { href: "/agents", label: "Octa Agents" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/guides", label: "Guides" },
 ];
 
 export function Nav() {
@@ -36,9 +37,9 @@ export function Nav() {
         <ul className="hidden items-center gap-8 text-[14px] text-fg lg:flex">
           {LINKS.map((l) => (
             <li key={l.href}>
-              <a href={l.href} className="opacity-80 transition-opacity hover:opacity-100">
+              <Link href={l.href} className="opacity-80 transition-opacity hover:opacity-100">
                 {l.label}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
@@ -66,13 +67,13 @@ export function Nav() {
         <ul className="px-4 pb-6 lg:hidden">
           {LINKS.map((l) => (
             <li key={l.href}>
-              <a
+              <Link
                 href={l.href}
                 onClick={() => setOpen(false)}
                 className="block border-b border-hairline py-4 font-[family-name:var(--font-display)] text-[24px] font-semibold tracking-tight"
               >
                 {l.label}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
