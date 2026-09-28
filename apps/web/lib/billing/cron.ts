@@ -1,5 +1,7 @@
 // Daily job: pauses the live sites of accounts whose plan ended more than 14 days ago, and brings
-// back any paused site whose owner has an active plan again (in case a webhook couldn't).
+// back any paused site whose owner has an active plan again (in case a webhook couldn't). Also
+// re-checks custom domains still waiting on DNS.
+import { refreshPendingDomains } from "@/lib/domains/store";
 import { sendEmail } from "@/lib/email/send";
 import { sitesPausedEmail } from "@/lib/email/templates";
 import { ACTIVE, GRACE_DAYS, isComped } from "./entitlements";
@@ -32,4 +34,7 @@ export async function runBillingCron(env: CloudflareEnv, ctx: ExecutionContext) 
     .all<{ userId: string }>();
   for (const { userId } of back) await resumeSites(env, userId);
   console.log(`Billing cron: paused sites for ${lapsed.length} accounts, resumed ${back.length}`);
+
+  const domains = await refreshPendingDomains(env);
+  console.log(`Domains cron: checked ${domains.checked} pending domains, dropped ${domains.failed}`);
 }

@@ -12,6 +12,7 @@ interface __BaseEnv_CloudflareEnv {
 	SITES_DOMAIN: "octacore.app";
 	OPENAI_BASE_URL: "https://api.openai.com/v1";
 	COMPED_EMAILS: "fortnitekhan111@gmail.com";
+	CUSTOM_DOMAIN_TARGET: "domains.octacore.app";
 	BETTER_AUTH_SECRET: string;
 	OPENAI_API_KEY: string;
 	PEXELS_API_KEY: string;
@@ -20,6 +21,8 @@ interface __BaseEnv_CloudflareEnv {
 	WHOP_API_KEY: string;
 	WHOP_WEBHOOK_SECRET: string;
 	WHOP_API_BASE_URL: string;
+	CF_API_TOKEN: string;
+	CF_ZONE_ID: string;
 	WORKER_SELF_REFERENCE: Service<typeof import("./worker").default>;
 }
 declare namespace Cloudflare {
@@ -33,7 +36,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_MODEL" | "OPENAI_CHAT_MODEL" | "OPENAI_FAST_MODEL" | "SITES_DOMAIN" | "OPENAI_BASE_URL" | "COMPED_EMAILS" | "BETTER_AUTH_SECRET" | "OPENAI_API_KEY" | "PEXELS_API_KEY" | "GOOGLE_PLACES_API_KEY" | "RESEND_API_KEY" | "WHOP_API_KEY" | "WHOP_WEBHOOK_SECRET" | "WHOP_API_BASE_URL">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_MODEL" | "OPENAI_CHAT_MODEL" | "OPENAI_FAST_MODEL" | "SITES_DOMAIN" | "OPENAI_BASE_URL" | "COMPED_EMAILS" | "CUSTOM_DOMAIN_TARGET" | "BETTER_AUTH_SECRET" | "OPENAI_API_KEY" | "PEXELS_API_KEY" | "GOOGLE_PLACES_API_KEY" | "RESEND_API_KEY" | "WHOP_API_KEY" | "WHOP_WEBHOOK_SECRET" | "WHOP_API_BASE_URL" | "CF_API_TOKEN" | "CF_ZONE_ID">> {}
 }
 
 // Begin runtime types

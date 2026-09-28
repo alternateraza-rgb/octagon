@@ -41,7 +41,7 @@ export const PLANS: Plan[] = [
       "1,500 Octa chat messages",
       "25 live websites",
       "5 GB of uploads",
-      "Custom client domains (soon)",
+      "Custom client domains",
     ],
     featured: true,
   },
@@ -57,7 +57,7 @@ export const PLANS: Plan[] = [
       "6,000 Octa chat messages",
       "150 live websites",
       "25 GB of uploads",
-      "Custom client domains (soon)",
+      "Custom client domains",
     ],
   },
 ];

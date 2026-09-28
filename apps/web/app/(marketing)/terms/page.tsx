@@ -161,8 +161,8 @@ export default function TermsPage() {
       <LegalSection id="hosting" title="7. Hosting and your sites">
         <ul>
           <li>
-            Published sites are served from an address on octacore.app. Custom domain support is being added and, when
-            available, you&apos;re responsible for owning and configuring any domain you connect.
+            Published sites are served from an address on octacore.app, and on any custom domain you connect.
+            You&apos;re responsible for owning and configuring any domain you connect.
           </li>
           <li>
             We work to keep sites fast and available, but we don&apos;t guarantee uninterrupted service. Keep your own copies

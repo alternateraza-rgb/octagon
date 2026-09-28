@@ -1,6 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getSession } from "@/lib/auth/server";
 import { unpublish } from "@/lib/deploy/sites";
+import { removeSiteDomains } from "@/lib/domains/store";
 import { deleteSite, getSite } from "@/lib/sites/store";
 
 export async function DELETE(_request: Request, { params }: RouteContext<"/api/sites/[id]">) {
@@ -10,6 +11,7 @@ export async function DELETE(_request: Request, { params }: RouteContext<"/api/s
   const { env } = await getCloudflareContext({ async: true });
   const site = await getSite(env.DB, id, session.user.id);
   if (!site) return Response.json({ error: "Site not found." }, { status: 404 });
+  await removeSiteDomains(env, id);
   if (site.slug) await unpublish(env, site.slug);
   await deleteSite(env.DB, id);
   return new Response(null, { status: 204 });

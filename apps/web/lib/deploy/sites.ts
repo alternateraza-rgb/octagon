@@ -9,6 +9,8 @@ export function siteUrl(env: CloudflareEnv, slug: string) {
 const RESERVED = new Set([
   "www", "api", "app", "admin", "mail", "email", "dashboard", "s", "img", "static", "assets", "cdn",
   "blog", "docs", "help", "support", "status", "billing", "login", "signup", "auth", "dev", "staging",
+  // Custom domains CNAME here (the Cloudflare for SaaS fallback origin).
+  "domains",
 ]);
 
 // When the plain name is taken: pakeeza-core, pakeeza-studio, … then pakeeza-2 … then random.
