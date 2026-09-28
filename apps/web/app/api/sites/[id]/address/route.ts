@@ -1,6 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getSession } from "@/lib/auth/server";
 import { publish, siteUrl, slugProblem, slugify, unpublish } from "@/lib/deploy/sites";
+import { remapDomains } from "@/lib/domains/store";
 import { getSite, getVersionHtml } from "@/lib/sites/store";
 
 // Changes a site's public address. A live site moves to the new address straight away.
@@ -28,5 +29,6 @@ export async function POST(request: Request, { params }: RouteContext<"/api/site
     if (html) await publish(env, slug, html);
     if (site.slug) await unpublish(env, site.slug);
   }
+  await remapDomains(env, id, slug);
   return Response.json({ slug, url: siteUrl(env, slug) });
 }

@@ -17,6 +17,7 @@ import { BuilderTimeline, type Pending } from "./builder-chat";
 import { BuildStage, EditOverlay } from "./build-progress";
 import { noticeUpgrade } from "@/lib/billing/client";
 import { SellSheet } from "@/components/sales/sell-sheet";
+import { CustomDomains } from "./custom-domains";
 
 type Device = "desktop" | "tablet" | "mobile";
 const DEVICES: { id: Device; label: string; icon: typeof Monitor; width: string }[] = [
@@ -453,6 +454,7 @@ function DeploysPanel({
             </a>
           </div>
           <AddressEditor siteId={site.id} slug={site.slug!} domain={sitesDomain} onSaved={onAddressSaved} />
+          <CustomDomains siteId={site.id} onChanged={onAddressSaved} />
         </div>
       ) : (
         <div className="rounded-[20px] border border-dashed border-hairline p-5 text-center">

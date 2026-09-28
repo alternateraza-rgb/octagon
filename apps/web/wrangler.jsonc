@@ -33,9 +33,14 @@
     }
   ],
   // <slug>.octacore.app serves deployed sites (needs a proxied `*` DNS record on the zone).
-  "routes": [{ "pattern": "*.octacore.app/*", "zone_name": "octacore.app" }],
+  // `*/*` catches custom domains: Cloudflare for SaaS is enabled on the zone with the proxied
+  // `domains.octacore.app` record (AAAA 100::) as its fallback origin, and customers CNAME to it.
+  "routes": [
+    { "pattern": "*.octacore.app/*", "zone_name": "octacore.app" },
+    { "pattern": "*/*", "zone_name": "octacore.app" }
+  ],
   "workers_dev": true,
-  // OPENAI_API_KEY, BETTER_AUTH_SECRET, PEXELS_API_KEY, GOOGLE_PLACES_API_KEY, RESEND_API_KEY, WHOP_API_KEY and WHOP_WEBHOOK_SECRET are secrets: set it in the dashboard (type Secret) or with `wrangler secret put`.
+  // OPENAI_API_KEY, BETTER_AUTH_SECRET, PEXELS_API_KEY, GOOGLE_PLACES_API_KEY, RESEND_API_KEY, WHOP_API_KEY, WHOP_WEBHOOK_SECRET and CF_API_TOKEN (Zone › SSL and Certificates: Edit on octacore.app, for custom domains) are secrets: set it in the dashboard (type Secret) or with `wrangler secret put`.
   "vars": {
     "OPENAI_MODEL": "gpt-6-sol",
     "OPENAI_CHAT_MODEL": "gpt-6-sol",
@@ -43,6 +48,8 @@
     "OPENAI_FAST_MODEL": "gpt-6-luna",
     "SITES_DOMAIN": "octacore.app",
     "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    // Where custom domains point their CNAME. CF_ZONE_ID (octacore.app's zone id) is set in the dashboard.
+    "CUSTOM_DOMAIN_TARGET": "domains.octacore.app",
     // Accounts that always get Agency limits without paying (comma-separated).
     "COMPED_EMAILS": "fortnitekhan111@gmail.com"
   },
