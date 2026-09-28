@@ -368,8 +368,8 @@ export default function TermsPage() {
           <li>We&apos;re not responsible for delays or failures caused by events outside our reasonable control.</li>
           <li>
             If you have a dispute with us, please email <SupportLink /> first so we can try to resolve it informally.
-            These terms are governed by the laws of the jurisdiction where Octacore&apos;s operator is established, without
-            affecting any mandatory consumer protections where you live.
+            These terms are governed by the laws of the State of Wyoming, United States, without regard to its
+            conflict-of-laws rules and without affecting any mandatory consumer protections where you live.
           </li>
         </ul>
       </LegalSection>
