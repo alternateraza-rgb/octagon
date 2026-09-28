@@ -4,6 +4,7 @@ import { DocLink, LegalPage, LegalSection, SupportLink } from "@/components/mark
 export const metadata: Metadata = {
   title: "Terms of Service",
   description: "The agreement between you and Octacore for building, hosting and selling websites.",
+  alternates: { canonical: "/terms" },
 };
 
 const CONTENTS: [string, string][] = [

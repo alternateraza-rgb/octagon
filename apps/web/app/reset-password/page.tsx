@@ -1,7 +1,7 @@
 import { AuthCard } from "@/components/auth/auth-card";
 import { ResetForm } from "@/components/auth/reset-form";
 
-export const metadata = { title: "Choose a new password" };
+export const metadata = { title: "Choose a new password", robots: { index: false } };
 
 // Better Auth sends people here as /reset-password?token=… (or ?error=INVALID_TOKEN).
 export default async function ResetPasswordPage({ searchParams }: PageProps<"/reset-password">) {

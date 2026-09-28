@@ -229,6 +229,9 @@ export function Templates() {
             <p className="max-w-[360px] text-[17px] leading-[1.5]">
               Eight launch-ready sites for the businesses that buy websites most. Open one, describe your client, done.
             </p>
+            <Link href="/templates" className="mt-3 inline-block text-[16px] font-medium text-octa-700 hover:text-octa-600">
+              Browse all templates ›
+            </Link>
           </Reveal>
         </div>
         <div className="mt-14 grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
@@ -302,7 +305,7 @@ const AGENTS = [
   { t: "Outreach", soon: true, b: "Writes the first email with their new site attached and follows up on schedule.", Visual: OutreachVisual },
 ];
 
-export function Agents() {
+export function Agents({ more = true }: { more?: boolean }) {
   return (
     <section id="agents" className="scroll-mt-16 bg-[#eeeceb]">
       <div className="mx-auto max-w-[1280px] px-4 pt-20 pb-14 sm:px-8 sm:pt-28">
@@ -314,6 +317,13 @@ export function Agents() {
           text="Octacore doesn't stop when you publish. Agents find the businesses that need a website and build theirs before you call."
           className={`${display} mt-3 max-w-[900px] text-[26px] leading-[1.2] tracking-[-0.02em] sm:text-[36px]`}
         />
+        {more && (
+          <Reveal delay={0.1}>
+            <Link href="/agents" className="mt-5 inline-block text-[16px] font-medium text-octa-700 hover:text-octa-600">
+              How Octa Agents work ›
+            </Link>
+          </Reveal>
+        )}
       </div>
       <div className="relative overflow-hidden px-4 py-14 sm:px-8 sm:py-20">
         <Photo id="photo-1600093463592-8e36ae95ef56" alt="" w={1440} className="!absolute inset-0 scale-110 blur-2xl" />
@@ -473,9 +483,14 @@ export function Sendoff() {
 /* ———————————————————— Footer ———————————————————— */
 
 const FOOTER: Record<string, [string, string][]> = {
-  Company: [["About us", "#"], ["Affiliate program", "#"], ["Careers", "#"], ["Contact", `mailto:${SUPPORT_EMAIL}`]],
-  Product: [["Builder", "/#stack"], ["Hosting", "/#stack"], ["Octa Agents", "/#agents"], ["Templates", "/#templates"]],
-  Resources: [["Guides", "#"], ["Help center", `mailto:${SUPPORT_EMAIL}`], ["Changelog", "#"], ["Status", "#"]],
+  Product: [["Features", "/features"], ["Templates", "/templates"], ["Octa Agents", "/agents"], ["Pricing", "/pricing"]],
+  Resources: [
+    ["Guides", "/guides"],
+    ["Selling websites", "/guides/how-to-sell-websites-to-local-businesses"],
+    ["Compare", "/guides/octacore-vs-base44-wix-durable-framer"],
+    ["Help center", `mailto:${SUPPORT_EMAIL}`],
+  ],
+  Company: [["About us", "/about"], ["Contact", `mailto:${SUPPORT_EMAIL}`]],
   Legal: [["Privacy policy", "/privacy"], ["Refund policy", "/refunds"], ["Terms of service", "/terms"], ["Acceptable use", "/terms#acceptable-use"]],
 };
 

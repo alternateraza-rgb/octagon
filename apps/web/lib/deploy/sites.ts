@@ -105,16 +105,16 @@ export async function unpublish(env: CloudflareEnv, slug: string) {
   await env.SITES.delete(key(slug));
 }
 
-// Returns the slug when a request is for a deployed site:
-// https://<slug>.octacore.app or https://octacore.app/s/<slug>
-export function deployedSlug(url: URL, sitesDomain: string) {
+// Returns the slug when a request is for a deployed site: https://<slug>.octacore.app, or
+// https://octacore.app/s/<slug> (`onPath`), a copy on Octacore's own domain that search engines skip.
+export function deployedSite(url: URL, sitesDomain: string) {
   const suffix = `.${sitesDomain}`;
   if (url.hostname.endsWith(suffix)) {
     const sub = url.hostname.slice(0, -suffix.length);
-    if (/^[a-z0-9-]+$/.test(sub) && !RESERVED.has(sub)) return sub;
+    if (/^[a-z0-9-]+$/.test(sub) && !RESERVED.has(sub)) return { slug: sub, onPath: false };
   }
   const match = url.pathname.match(/^\/s\/([a-z0-9-]+)\/?$/);
-  return match?.[1] ?? null;
+  return match ? { slug: match[1], onPath: true } : null;
 }
 
 const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Site not found</title>
@@ -125,7 +125,8 @@ const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><m
 // scripts can't read or set cookies on octacore.app.
 export const SANDBOX_CSP = "sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals";
 
-export async function serveDeployedSite(env: CloudflareEnv, slug: string) {
+// `index: false` keeps a copy out of search results, so a client's pages don't rank on octacore.app itself.
+export async function serveDeployedSite(env: CloudflareEnv, slug: string, { index = true } = {}) {
   const html = await env.SITES.get(key(slug), { cacheTtl: 60 });
   return new Response(html ?? NOT_FOUND, {
     status: html ? 200 : 404,
@@ -133,7 +134,7 @@ export async function serveDeployedSite(env: CloudflareEnv, slug: string) {
       "content-type": "text/html; charset=utf-8",
       "content-security-policy": SANDBOX_CSP,
       "cache-control": "public, max-age=60",
-      "x-robots-tag": html ? "all" : "noindex",
+      "x-robots-tag": html && index ? "all" : "noindex",
     },
   });
 }

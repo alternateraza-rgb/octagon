@@ -4,7 +4,7 @@
 // @ts-ignore `.open-next/worker.js` is generated at build time.
 import { default as nextHandler } from "./.open-next/worker.js";
 import { routeStreamingApi } from "./lib/api/streaming";
-import { deployedSlug, serveDeployedSite } from "./lib/deploy/sites";
+import { deployedSite, serveDeployedSite } from "./lib/deploy/sites";
 import { domainSlug } from "./lib/domains/store";
 import { serveImage } from "./lib/images";
 import { routeUploads } from "./lib/uploads";
@@ -23,8 +23,8 @@ export default {
     // Uploaded files, also on every host so deployed sites can use them.
     const uploads = routeUploads(request, env);
     if (uploads) return uploads;
-    const slug = deployedSlug(url, env.SITES_DOMAIN);
-    if (slug) return serveDeployedSite(env, slug);
+    const site = deployedSite(url, env.SITES_DOMAIN);
+    if (site) return serveDeployedSite(env, site.slug, { index: !site.onPath });
     // Custom domains connected to a site (Cloudflare for SaaS sends them here through the `*/*` route).
     const hostSlug = await domainSlug(env, url);
     if (hostSlug) return serveDeployedSite(env, hostSlug);
