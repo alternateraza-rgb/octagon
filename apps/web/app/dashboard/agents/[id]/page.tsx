@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AgentHQ } from "@/components/agents/hq/agent-hq";
 import { mockAgents, mockEvents, mockLeads } from "@/components/agents/hq/mock";
 import { renderTime } from "@/lib/time";
+import { requireAgentsPreview } from "@/lib/agents/preview";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/agents/[id]">) {
   const { id } = await params;
@@ -10,6 +11,7 @@ export async function generateMetadata({ params }: PageProps<"/dashboard/agents/
 
 // Prototype: one sample agent's map, pipeline and activity until the outreach API is wired in.
 export default async function AgentPage({ params }: PageProps<"/dashboard/agents/[id]">) {
+  await requireAgentsPreview();
   const { id } = await params;
   const agent = mockAgents().find((a) => a.id === id);
   if (!agent) notFound();
