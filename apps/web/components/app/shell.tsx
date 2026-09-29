@@ -43,7 +43,7 @@ const NAV = [
   },
   { href: "/dashboard/sites", label: "Websites", icon: Globe, match: (p: string) => p.startsWith("/dashboard/sites") },
   { href: "/dashboard/sales", label: "Sales", icon: Tag, match: (p: string) => p.startsWith("/dashboard/sales") },
-  { href: "/dashboard/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/dashboard/agents"), soon: true },
+  { href: "/dashboard/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/dashboard/agents") },
   { href: "/dashboard/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/dashboard/settings") },
 ];
 
@@ -264,7 +264,7 @@ function Sidebar({
       </div>
 
       <ul className="mt-5 space-y-0.5">
-        {NAV.map(({ href, label, icon: Icon, match, soon }) => {
+        {NAV.map(({ href, label, icon: Icon, match }) => {
           const active = match(pathname);
           return (
             <li key={href}>
@@ -286,9 +286,6 @@ function Sidebar({
                 )}
                 <Icon size={18} strokeWidth={1.5} className={`relative ${active ? "text-octa-600" : ""}`} />
                 {!collapsed && <span className="relative">{label}</span>}
-                {!collapsed && soon && (
-                  <span className="relative ml-auto rounded-full bg-fg/[.07] px-2 py-0.5 text-[11px] text-fg-3">Soon</span>
-                )}
               </Link>
             </li>
           );
