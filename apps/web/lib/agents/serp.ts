@@ -229,7 +229,9 @@ export async function serpWebSearch(env: CloudflareEnv, userId: string | null, q
     text: [r.title, r.snippet, JSON.stringify(r.rich_snippet ?? "")].join(" "),
   }));
   if (body.knowledge_graph) {
-    results.unshift({ title: "Google knowledge panel", link: body.knowledge_graph.website, text: JSON.stringify(body.knowledge_graph) });
+    // Titled with the business it's about, so the hunt can tell whether that's this business.
+    const title = typeof body.knowledge_graph.title === "string" ? body.knowledge_graph.title : "";
+    results.unshift({ title, link: body.knowledge_graph.website, text: JSON.stringify(body.knowledge_graph) });
   }
   return results;
 }

@@ -43,11 +43,12 @@ const FREE_MAIL = ["gmail.com", "yahoo.com", "yahoo.ca", "hotmail.com", "outlook
 // Hosts worth fetching directly: public pages without a login wall.
 const READABLE = ["linktr.ee", "linkin.bio", "booksy.com", "vagaro.com", "squareup.com", "square.site", "business.site", "carrd.co", "beacons.ai"];
 
-type Candidate = { email: string; source: string | null; nearName: boolean };
+// `aboutThem`: the page or search result the address came from is about this business (its title
+// names them), not a directory or a neighbour that happens to mention them.
+type Candidate = { email: string; source: string | null; aboutThem: boolean };
 
-function emailsIn(text: string, source: string | null, nameTokens: string[]): Candidate[] {
+function emailsIn(text: string, source: string | null, aboutThem: boolean): Candidate[] {
   const out: Candidate[] = [];
-  const lower = text.toLowerCase();
   for (const match of text.matchAll(EMAIL)) {
     const email = match[0].toLowerCase().replace(/\.+$/, "");
     const [local, domain] = email.split("@");
@@ -55,35 +56,52 @@ function emailsIn(text: string, source: string | null, nameTokens: string[]): Ca
     if (/\.(png|jpe?g|gif|webp|svg|css|js)$/.test(email)) continue;
     if (JUNK_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) continue;
     if (JUNK_LOCAL.test(local)) continue;
-    // Is the business's name mentioned near the address (same snippet window)?
-    const at = match.index ?? 0;
-    const window = lower.slice(Math.max(0, at - 220), at + 220);
-    const nearName = nameTokens.some((t) => window.includes(t));
-    out.push({ email, source, nearName });
+    out.push({ email, source, aboutThem });
   }
   return out;
 }
 
-const tokens = (name: string) =>
-  name
+// Words in a business name that don't tell it apart from others in its trade or town: "Dallas
+// Plumbing Pros" shares "plumbing" with every plumber, so only its distinctive words count.
+const GENERIC = new Set(
+  (
+    "inc ltd llc corp company co services service the and pros pro plus group shop store center centre " +
+    "plumbing plumber plumbers heating cooling hvac roofing roofer electric electrical electrician landscape landscaping " +
+    "lawn cleaning cleaners auto repair repairs mechanic dental dentist clinic salon spa barber cafe restaurant pizza pizzeria " +
+    "kitchen grill bakery provisions bistro construction contracting contractors painting painters moving movers " +
+    "rooter drain sewer pest control towing detailing fitness studio family local best quality"
+  ).split(" "),
+);
+
+function distinctive(b: Business) {
+  const place = `${b.city ?? ""} ${b.region ?? ""}`.toLowerCase();
+  return b.name
     .toLowerCase()
     .replace(/[^a-z0-9 ]+/g, " ")
     .split(/\s+/)
-    .filter((t) => t.length >= 4 && !["inc", "ltd", "llc", "corp", "company", "services", "service", "the", "and"].includes(t));
+    .filter((t) => t.length >= 4 && !GENERIC.has(t) && !place.includes(t));
+}
 
-// How much an address looks like this business's own.
-function rank(c: Candidate, nameTokens: string[]): { score: number; confidence: Confidence } {
+// A result is about the business when its title carries the business's distinctive words (or, for a
+// name made only of generic words, the whole name).
+function about(text: string | undefined, b: Business, tokens: string[]) {
+  const t = (text ?? "").toLowerCase();
+  if (!tokens.length) return t.includes(b.name.toLowerCase());
+  return tokens.filter((k) => t.includes(k)).length >= Math.min(2, tokens.length);
+}
+
+// Whether an address can be trusted as this business's, and how far. A company address has to carry
+// the business's name; a Gmail-style address has to come from a result about them.
+function rank(c: Candidate, tokens: string[]): { score: number; confidence: Confidence } | null {
   const [local, domain] = c.email.split("@");
   const compact = (local + domain).replace(/[^a-z0-9]/g, "");
-  const matchesName = nameTokens.some((t) => compact.includes(t));
-  const ownDomain = !FREE_MAIL.includes(domain);
-  let score = 0;
-  if (matchesName) score += 3;
-  if (c.nearName) score += 2;
-  if (ownDomain && matchesName) score += 1;
+  const matchesName = tokens.some((t) => compact.includes(t));
+  const freeMail = FREE_MAIL.includes(domain);
+  if (!freeMail && !matchesName) return null;
+  if (freeMail && !c.aboutThem) return null;
+  let score = (matchesName ? 3 : 0) + (c.aboutThem ? 2 : 0) + (freeMail ? 0 : 1);
   if (/^(info|contact|hello|office|admin|book|bookings|service|sales)$/.test(local)) score += 1;
-  const confidence: Confidence = matchesName && c.nearName ? "high" : matchesName || c.nearName ? "medium" : "low";
-  return { score, confidence };
+  return { score, confidence: matchesName && c.aboutThem ? "high" : "medium" };
 }
 
 async function acceptsMail(domain: string) {
@@ -119,16 +137,17 @@ function readable(url: string | null) {
   }
 }
 
-async function pick(candidates: Candidate[], nameTokens: string[]) {
+async function pick(candidates: Candidate[], tokens: string[]) {
   const seen = new Map<string, Candidate>();
   for (const c of candidates) {
     const prev = seen.get(c.email);
-    if (!prev || (!prev.nearName && c.nearName)) seen.set(c.email, c);
+    if (!prev || (!prev.aboutThem && c.aboutThem)) seen.set(c.email, c);
   }
   const ranked = [...seen.values()]
-    .map((c) => ({ c, ...rank(c, nameTokens) }))
-    // A stray address nobody ties to the business is more likely to belong to someone else.
-    .filter((r) => r.score >= 2)
+    .map((c) => ({ c, r: rank(c, tokens) }))
+    // An address nothing ties to the business probably belongs to someone else: better none than wrong.
+    .filter((x): x is { c: Candidate; r: NonNullable<ReturnType<typeof rank>> } => x.r !== null)
+    .map(({ c, r }) => ({ c, ...r }))
     .sort((a, b) => b.score - a.score);
   for (const r of ranked.slice(0, 3)) {
     if (await acceptsMail(r.c.email.split("@")[1])) return { email: r.c.email, source: r.c.source, confidence: r.confidence };
@@ -138,7 +157,7 @@ async function pick(candidates: Candidate[], nameTokens: string[]) {
 
 // Finds and saves the business's email. Returns what was saved (null when nothing public was found).
 export async function huntContacts(env: CloudflareEnv, userId: string | null, b: Business) {
-  const nameTokens = tokens(b.name);
+  const tokens = distinctive(b);
   if (b.contactStatus !== "pending") {
     await env.DB.prepare(`update business set contactStatus = 'pending' where placeId = ?`).bind(b.placeId).run();
   }
@@ -146,13 +165,14 @@ export async function huntContacts(env: CloudflareEnv, userId: string | null, b:
   try {
     if (readable(b.socialUrl)) {
       const text = await readPage(b.socialUrl!);
-      found = await pick(emailsIn(text, b.socialUrl, nameTokens), nameTokens);
+      // Their own page (a Linktree, a booking page): what's on it is theirs.
+      found = await pick(emailsIn(text, b.socialUrl, true), tokens);
     }
     if (!found) {
       const place = [b.city, b.region].filter(Boolean).join(" ");
       const results = await serpWebSearch(env, userId, `"${b.name}" ${place} email`, b.country);
-      const candidates = results.flatMap((r) => emailsIn(r.text, r.link ?? null, nameTokens));
-      found = await pick(candidates, nameTokens);
+      const candidates = results.flatMap((r) => emailsIn(r.text, r.link ?? null, about(r.title, b, tokens)));
+      found = await pick(candidates, tokens);
     }
   } catch (error) {
     // Out of searches or Google didn't answer: leave it pending so the next pick tries again.

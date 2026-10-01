@@ -12,6 +12,7 @@ import { BusinessSheet } from "./business-sheet";
 import { Businesses } from "./businesses";
 import { Finder, type RecentSearch } from "./finder";
 import { Outreach } from "./outreach";
+import { AgentsMark } from "./agents-mark";
 import { BusinessPhoto } from "./parts";
 
 export type Tab = "find" | "businesses" | "outreach";
@@ -42,6 +43,11 @@ export function AgentsView({
   const toast = useToast();
   const [tab, setTab] = useState<Tab>(initialTab ?? (initialLeads.length ? "businesses" : "find"));
   const [outreach, setOutreach] = useState(initialOutreach);
+  const [intro, setIntro] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setIntro(false), 4200);
+    return () => clearTimeout(t);
+  }, []);
   const outreachReady = outreach.mailbox?.status === "connected" && !!outreach.settings;
 
   // The ?tab=…&mailbox=… Microsoft sends the user back with has done its job once read.
@@ -133,17 +139,32 @@ export function AgentsView({
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-[1120px] px-5 pb-24 pt-12 sm:pt-16">
-        <motion.h1
-          initial={reduce ? false : { opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 90, damping: 18 }}
-          className="font-[family-name:var(--font-display)] text-[44px] font-semibold leading-[1] tracking-[-0.045em] sm:text-[56px]"
-        >
-          Octa Agents
-        </motion.h1>
-        <p className="mt-3 max-w-[620px] text-[17px] text-fg-2">
-          Find local businesses with great reviews and no website. Octa finds how to reach them, and builds their site in one click.
-        </p>
+        <div className="flex items-center gap-4 sm:gap-5">
+          <AgentsMark size={52} />
+          <motion.h1
+            initial={reduce ? false : { opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ type: "spring", stiffness: 90, damping: 18, delay: 0.15 }}
+            className="font-[family-name:var(--font-display)] text-[40px] font-semibold leading-[1] tracking-[-0.045em] sm:text-[56px]"
+          >
+            Octa Agents
+          </motion.h1>
+        </div>
+        {/* The one-line explainer: shown as the page opens, then it steps aside for the work. */}
+        <AnimatePresence>
+          {intro && (
+            <motion.p
+              key="intro"
+              initial={reduce ? false : { opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } }}
+              transition={{ duration: 0.5, delay: 0.35 }}
+              className="max-w-[620px] overflow-hidden text-[17px] leading-[1.5] text-fg-2"
+            >
+              Find businesses with great reviews and no website, then win them a site.
+            </motion.p>
+          )}
+        </AnimatePresence>
 
         <div role="tablist" aria-label="Octa Agents" className="mt-8 inline-flex rounded-full bg-fg/[.05] p-1">
           {(
