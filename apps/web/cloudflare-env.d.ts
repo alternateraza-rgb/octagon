@@ -23,6 +23,8 @@ interface __BaseEnv_CloudflareEnv {
 	WHOP_API_BASE_URL: string;
 	CF_API_TOKEN: string;
 	CF_ZONE_ID: string;
+	GOOGLE_CLIENT_ID?: string;
+	GOOGLE_CLIENT_SECRET?: string;
 	WORKER_SELF_REFERENCE: Service<typeof import("./worker").default>;
 }
 declare namespace Cloudflare {

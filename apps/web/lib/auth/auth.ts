@@ -25,6 +25,8 @@ async function removeUserFiles(env: CloudflareEnv, userId: string) {
   ]);
 }
 
+export const googleEnabled = (env: CloudflareEnv) => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+
 // No Next.js imports here: the Worker entry uses this directly for its streaming endpoints.
 export function createAuth(env: CloudflareEnv) {
   return betterAuth({
@@ -56,6 +58,12 @@ export function createAuth(env: CloudflareEnv) {
         await sendEmail(env, passwordChangedEmail({ to: user.email, name: user.name }));
       },
     },
+    // "Continue with Google", once its OAuth client is set as secrets. Google verifies emails, so it
+    // links to an existing account with the same address instead of failing.
+    socialProviders: googleEnabled(env)
+      ? { google: { clientId: env.GOOGLE_CLIENT_ID!, clientSecret: env.GOOGLE_CLIENT_SECRET!, prompt: "select_account" } }
+      : {},
+    account: { accountLinking: { enabled: true, trustedProviders: ["google"] } },
     user: {
       // 'builder' for Octacore's users; 'owner' for clients who bought a site and only manage it.
       additionalFields: { role: { type: "string", defaultValue: "builder", input: false } },

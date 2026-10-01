@@ -10,6 +10,7 @@ import { TemplateFrame } from "@/components/templates/frame";
 import { CropMarks } from "@/components/marketing/motion";
 import { authClient } from "@/lib/auth/client";
 import { Field } from "@/components/auth/field";
+import { GoogleButton } from "@/components/auth/google-button";
 import { templateFontVariables } from "@/lib/template-fonts";
 import { PlanCards } from "@/components/billing/plan-cards";
 import { BillingDialog } from "@/components/billing/billing-dialog";
@@ -19,12 +20,22 @@ type Step = "account" | "plan" | "done";
 
 const display = "font-[family-name:var(--font-display)] font-semibold";
 
-export function SignupFlow({ prompt, templateSlug }: { prompt?: string; templateSlug?: string }) {
+export function SignupFlow({
+  prompt,
+  templateSlug,
+  google,
+  googleFailed,
+}: {
+  prompt?: string;
+  templateSlug?: string;
+  google: boolean;
+  googleFailed: boolean;
+}) {
   const reduce = useReducedMotion();
   const [step, setStep] = useState<Step>("account");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(googleFailed ? "Google sign-up didn’t go through. Try again, or use your email." : "");
   const [submitting, setSubmitting] = useState(false);
   const [checkout, setCheckout] = useState<{ plan: PlanId; interval: Interval } | null>(null);
 
@@ -78,7 +89,14 @@ export function SignupFlow({ prompt, templateSlug }: { prompt?: string; template
               <motion.section key="account" {...slide}>
                 <h1 className={`${display} text-[40px] leading-[1] tracking-[-0.04em]`}>Create your account</h1>
                 <p className="mt-3 text-[16px] text-fg-2">Start building websites you can sell today.</p>
-                <form onSubmit={createAccount} noValidate className="mt-8 space-y-4">
+                {google && (
+                  // Google accounts skip the plan step here: the dashboard asks for a plan before anything else.
+                  <GoogleButton
+                    callbackURL={prompt ? `/dashboard/sites?prompt=${encodeURIComponent(prompt)}` : "/dashboard"}
+                    errorURL={`/start${prompt || templateSlug ? `?${new URLSearchParams({ ...(prompt && { prompt }), ...(templateSlug && { template: templateSlug }) })}` : ""}`}
+                  />
+                )}
+                <form onSubmit={createAccount} noValidate className={`${google ? "mt-6" : "mt-8"} space-y-4`}>
                   <Field
                     id="email"
                     label="Email"

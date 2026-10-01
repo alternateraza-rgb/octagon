@@ -40,7 +40,7 @@
     { "pattern": "*/*", "zone_name": "octacore.app" }
   ],
   "workers_dev": true,
-  // OPENAI_API_KEY, BETTER_AUTH_SECRET, PEXELS_API_KEY, GOOGLE_PLACES_API_KEY, RESEND_API_KEY, WHOP_API_KEY, WHOP_WEBHOOK_SECRET and CF_API_TOKEN (Zone › SSL and Certificates: Edit on octacore.app, for custom domains) are secrets: set it in the dashboard (type Secret) or with `wrangler secret put`.
+  // OPENAI_API_KEY, BETTER_AUTH_SECRET, PEXELS_API_KEY, GOOGLE_PLACES_API_KEY, RESEND_API_KEY, WHOP_API_KEY, WHOP_WEBHOOK_SECRET, CF_API_TOKEN (Zone › SSL and Certificates: Edit on octacore.app, for custom domains), GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (Google sign-in; it stays hidden until both are set) are secrets: set it in the dashboard (type Secret) or with `wrangler secret put`.
   "vars": {
     "OPENAI_MODEL": "gpt-6-sol",
     "OPENAI_CHAT_MODEL": "gpt-6-sol",
