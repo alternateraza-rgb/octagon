@@ -69,8 +69,10 @@ export default function PrivacyPage() {
           Whop payout account.
         </p>
         <p>
-          <strong>Lead Finder.</strong> If you use Octa Agents, we store the searches you run and publicly listed business
-          details from Google Maps, such as a business&apos;s name, address, phone number, rating and reviews.
+          <strong>Octa Agents.</strong> If you use Octa Agents, we store the searches you run and the businesses you pick.
+          To power search, Octacore keeps its own record of publicly listed business details from Google Maps, such as a
+          business&apos;s name, address, phone number, rating and reviews, and any business email we find published on the
+          web. That record is shared across Octacore accounts so each business is only looked up once.
         </p>
         <p>
           <strong>Usage and logs.</strong> We count builds, messages, sites, uploads and searches to apply your
@@ -127,7 +129,8 @@ export default function PrivacyPage() {
             <strong>Resend</strong> to deliver our emails.
           </li>
           <li>
-            <strong>Google</strong> (Places API) for Lead Finder searches.
+            <strong>SerpApi</strong>, which returns Google Maps and Google Search results for Octa Agents searches. It
+            receives only the search terms, never your personal details.
           </li>
           <li>
             <strong>Pexels</strong> to supply stock photos. It receives only the photo search terms, never your personal

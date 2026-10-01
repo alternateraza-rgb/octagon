@@ -145,7 +145,10 @@ export function countUsage(db: D1Database, userId: string, meter: Meter, since: 
     case "storage":
       return count(db.prepare(`select sum(size) as n from upload where userId = ?`).bind(userId));
     case "leads":
-      return count(db.prepare(`select count(*) as n from lead where userId = ? and createdAt >= ?`).bind(userId, since));
+      // Businesses picked into the list; skipped ones are free.
+      return count(
+        db.prepare(`select count(*) as n from lead where userId = ? and status != 'dismissed' and createdAt >= ?`).bind(userId, since),
+      );
   }
 }
 

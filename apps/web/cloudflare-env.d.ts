@@ -17,6 +17,12 @@ interface __BaseEnv_CloudflareEnv {
 	OPENAI_API_KEY: string;
 	PEXELS_API_KEY: string;
 	GOOGLE_PLACES_API_KEY: string;
+	SERPAPI_API_KEY?: string;
+	// Optional ceiling on SerpApi searches per calendar month, across all accounts.
+	SERPAPI_MONTHLY_BUDGET?: string;
+	// Outlook for Octa Agents outreach (Azure app registration); the Outlook option stays hidden until both are set.
+	MICROSOFT_CLIENT_ID?: string;
+	MICROSOFT_CLIENT_SECRET?: string;
 	RESEND_API_KEY: string;
 	WHOP_API_KEY: string;
 	WHOP_WEBHOOK_SECRET: string;
@@ -38,7 +44,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_MODEL" | "OPENAI_CHAT_MODEL" | "OPENAI_FAST_MODEL" | "SITES_DOMAIN" | "OPENAI_BASE_URL" | "COMPED_EMAILS" | "CUSTOM_DOMAIN_TARGET" | "BETTER_AUTH_SECRET" | "OPENAI_API_KEY" | "PEXELS_API_KEY" | "GOOGLE_PLACES_API_KEY" | "RESEND_API_KEY" | "WHOP_API_KEY" | "WHOP_WEBHOOK_SECRET" | "WHOP_API_BASE_URL" | "CF_API_TOKEN" | "CF_ZONE_ID">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_MODEL" | "OPENAI_CHAT_MODEL" | "OPENAI_FAST_MODEL" | "SITES_DOMAIN" | "OPENAI_BASE_URL" | "COMPED_EMAILS" | "CUSTOM_DOMAIN_TARGET" | "BETTER_AUTH_SECRET" | "OPENAI_API_KEY" | "PEXELS_API_KEY" | "GOOGLE_PLACES_API_KEY" | "SERPAPI_API_KEY" | "SERPAPI_MONTHLY_BUDGET" | "MICROSOFT_CLIENT_ID" | "MICROSOFT_CLIENT_SECRET" | "RESEND_API_KEY" | "WHOP_API_KEY" | "WHOP_WEBHOOK_SECRET" | "WHOP_API_BASE_URL" | "CF_API_TOKEN" | "CF_ZONE_ID">> {}
 }
 
 // Begin runtime types
