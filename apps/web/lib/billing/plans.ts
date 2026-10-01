@@ -110,7 +110,7 @@ export const METER_LABEL: Record<Meter, { one: string; many: string }> = {
   chat: { one: "chat message", many: "chat messages" },
   sites: { one: "live website", many: "live websites" },
   storage: { one: "upload", many: "upload storage" },
-  leads: { one: "lead", many: "Lead Finder leads" },
+  leads: { one: "business", many: "Octa Agents businesses" },
 };
 
 export function formatBytes(n: number) {

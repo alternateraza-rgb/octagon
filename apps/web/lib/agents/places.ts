@@ -1,4 +1,6 @@
-// Google Places API (New): where Lead Finder gets its businesses. Two calls:
+// Google Places API (New). Octa Agents now searches through SerpApi (lib/agents/serp.ts) and only uses
+// the Place, PlaceDetails and Review shapes from here; the calls below are kept for switching back once
+// Google Cloud billing is set up. Two calls:
 // - Text Search, billed per page of up to 20 places. Asking for websiteUri and the phone number puts
 //   it on the Enterprise SKU, which is what lets us drop businesses that already have a website
 //   before paying for anything else.

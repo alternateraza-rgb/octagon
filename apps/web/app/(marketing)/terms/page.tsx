@@ -284,7 +284,7 @@ export default function TermsPage() {
       <LegalSection id="third-parties" title="12. Third-party services">
         <p>
           The Service relies on third parties, including Cloudflare (hosting), OpenAI (AI), Whop (payments and payouts),
-          Resend (email), Google (Lead Finder) and Pexels (stock photos). Their services are governed by their own terms,
+          Resend (email), SerpApi (Octa Agents searches) and Pexels (stock photos). Their services are governed by their own terms,
           and we&apos;re not responsible for them. Features that depend on them may change if they change what they offer.
         </p>
       </LegalSection>

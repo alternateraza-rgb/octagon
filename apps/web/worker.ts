@@ -1,5 +1,6 @@
 // Worker entry: serves deployed sites (on octacore.app and custom domains) from KV, the streaming AI endpoints and Whop's webhooks
-// directly; everything else goes to Next. The daily cron pauses sites of lapsed plans.
+// directly; everything else goes to Next. The daily cron pauses sites of lapsed plans; the 10-minute one sends
+// Octa Agents outreach emails.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore `.open-next/worker.js` is generated at build time.
 import { default as nextHandler } from "./.open-next/worker.js";
@@ -9,6 +10,7 @@ import { domainSlug } from "./lib/domains/store";
 import { serveImage } from "./lib/images";
 import { routeUploads } from "./lib/uploads";
 import { runBillingCron } from "./lib/billing/cron";
+import { runOutreachCron } from "./lib/outreach/cron";
 import { routeWhopWebhook } from "./lib/billing/webhook";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -34,7 +36,8 @@ export default {
     if (streaming) return streaming;
     return nextHandler.fetch(request, env, ctx);
   },
-  async scheduled(_controller, env, ctx) {
-    await runBillingCron(env, ctx);
+  async scheduled(controller, env, ctx) {
+    if (controller.cron === "*/10 * * * *") await runOutreachCron(env);
+    else await runBillingCron(env, ctx);
   },
 } satisfies ExportedHandler<CloudflareEnv>;

@@ -22,6 +22,7 @@ import {
   Tag,
   Sun,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { OctacoreLogo, OctacoreMark } from "@octacore/ui/logo";
 import { authClient } from "@/lib/auth/client";
@@ -34,7 +35,8 @@ import { planById } from "@/lib/billing/plans";
 import { STEPS, doneCount, type Onboarding } from "@/lib/onboarding/steps";
 import { Tour } from "@/components/onboarding/tour/tour";
 
-const NAV = [
+// `soon` marks a section that isn't open yet (shows a pill).
+const NAV: { href: string; label: string; icon: LucideIcon; match: (p: string) => boolean; soon?: boolean }[] = [
   {
     href: "/dashboard",
     label: "Home",
@@ -43,7 +45,7 @@ const NAV = [
   },
   { href: "/dashboard/sites", label: "Websites", icon: Globe, match: (p: string) => p.startsWith("/dashboard/sites") },
   { href: "/dashboard/sales", label: "Sales", icon: Tag, match: (p: string) => p.startsWith("/dashboard/sales") },
-  { href: "/dashboard/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/dashboard/agents"), soon: true },
+  { href: "/dashboard/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/dashboard/agents") },
   { href: "/dashboard/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/dashboard/settings") },
 ];
 
