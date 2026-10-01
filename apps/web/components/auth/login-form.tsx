@@ -6,8 +6,9 @@ import { useState } from "react";
 import { ArrowRight, Lock, Mail } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { Field } from "./field";
+import { GoogleButton } from "./google-button";
 
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({ next, google }: { next: string; google: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +35,8 @@ export function LoginForm({ next }: { next: string }) {
 
   return (
     <>
-      <form onSubmit={logIn} noValidate className="mt-8 space-y-4">
+      {google && <GoogleButton callbackURL={next} errorURL="/login" />}
+      <form onSubmit={logIn} noValidate className={`${google ? "mt-6" : "mt-8"} space-y-4`}>
         <Field
           id="email"
           label="Email"
