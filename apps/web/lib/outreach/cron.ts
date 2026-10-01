@@ -166,6 +166,8 @@ async function autopilot(env: CloudflareEnv) {
     const { results: leads } = await env.DB.prepare(
       `select l.id from lead l left join business b on b.placeId = l.placeId
        where l.userId = ? and l.status != 'dismissed' and coalesce(l.emailOverride, b.email) is not null
+         -- Autopilot only writes to strong matches (or emails the user typed); the rest wait for a person.
+         and (l.emailOverride is not null or b.emailConfidence = 'high')
          and not exists (select 1 from sequence s where s.leadId = l.id)
          and not exists (select 1 from suppression x where x.email = lower(coalesce(l.emailOverride, b.email)))
        order by l.createdAt limit ?`,

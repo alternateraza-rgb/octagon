@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
-  Bot,
   Compass,
   CreditCard,
   Globe,
@@ -25,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { OctacoreLogo, OctacoreMark } from "@octacore/ui/logo";
+import { AgentsIcon } from "./agents-icon";
 import { authClient } from "@/lib/auth/client";
 import type { Conversation } from "@/lib/chat/store";
 import { ToastProvider, useToast } from "@/components/ui/toast";
@@ -35,8 +35,10 @@ import { planById } from "@/lib/billing/plans";
 import { STEPS, doneCount, type Onboarding } from "@/lib/onboarding/steps";
 import { Tour } from "@/components/onboarding/tour/tour";
 
+type NavIcon = LucideIcon | ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+
 // `soon` marks a section that isn't open yet (shows a pill).
-const NAV: { href: string; label: string; icon: LucideIcon; match: (p: string) => boolean; soon?: boolean }[] = [
+const NAV: { href: string; label: string; icon: NavIcon; match: (p: string) => boolean; soon?: boolean }[] = [
   {
     href: "/dashboard",
     label: "Home",
@@ -45,7 +47,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; match: (p: string) =
   },
   { href: "/dashboard/sites", label: "Websites", icon: Globe, match: (p: string) => p.startsWith("/dashboard/sites") },
   { href: "/dashboard/sales", label: "Sales", icon: Tag, match: (p: string) => p.startsWith("/dashboard/sales") },
-  { href: "/dashboard/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/dashboard/agents") },
+  { href: "/dashboard/agents", label: "Agents", icon: AgentsIcon, match: (p: string) => p.startsWith("/dashboard/agents") },
   { href: "/dashboard/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/dashboard/settings") },
 ];
 

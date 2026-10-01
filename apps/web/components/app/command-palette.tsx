@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Bot, CornerDownLeft, Globe, KeyRound, MessageCircle, Monitor, Moon, Plus, Search, Settings, SquarePen, Sun } from "lucide-react";
+import { AgentsIcon } from "./agents-icon";
+import { CornerDownLeft, Globe, KeyRound, MessageCircle, Monitor, Moon, Plus, Search, Settings, SquarePen, Sun } from "lucide-react";
 import { useWorkspace } from "./workspace";
 
-type Item = { id: string; group: string; label: string; hint?: string; icon: typeof Search; run: () => void };
+type Item = { id: string; group: string; label: string; hint?: string; icon: typeof Search | typeof AgentsIcon; run: () => void };
 type SiteRow = { id: string; title: string | null; slug: string | null };
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -40,7 +41,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       { id: "new-chat", group: "Actions", label: "New chat", icon: SquarePen, run: go("/dashboard") },
       { id: "new-site", group: "Actions", label: "New website", icon: Plus, run: go("/dashboard/sites#new") },
       { id: "sites", group: "Actions", label: "Go to Websites", icon: Globe, run: go("/dashboard/sites") },
-      { id: "agents", group: "Actions", label: "Go to Agents", icon: Bot, run: go("/dashboard/agents") },
+      { id: "agents", group: "Actions", label: "Go to Agents", icon: AgentsIcon, run: go("/dashboard/agents") },
       { id: "settings", group: "Actions", label: "Settings", icon: Settings, run: go("/dashboard/settings") },
       { id: "password", group: "Actions", label: "Change password", icon: KeyRound, run: go("/dashboard/settings#security") },
       { id: "light", group: "Appearance", label: "Light theme", icon: Sun, run: () => (setTheme("light"), onClose()) },
