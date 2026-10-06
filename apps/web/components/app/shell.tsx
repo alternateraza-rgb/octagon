@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ComponentType } from "react";
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Compass,
   CreditCard,
   Globe,
+  GraduationCap,
   LogOut,
   Menu,
   MessageCircle,
@@ -37,8 +39,8 @@ import { Tour } from "@/components/onboarding/tour/tour";
 
 type NavIcon = LucideIcon | ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 
-// `soon` marks a section that isn't open yet (shows a pill).
-const NAV: { href: string; label: string; icon: NavIcon; match: (p: string) => boolean; soon?: boolean }[] = [
+// `soon` marks a section that isn't open yet (shows a pill); `compedOnly` hides it from everyone else.
+const NAV: { href: string; label: string; icon: NavIcon; match: (p: string) => boolean; soon?: boolean; compedOnly?: boolean }[] = [
   {
     href: "/dashboard",
     label: "Home",
@@ -48,8 +50,18 @@ const NAV: { href: string; label: string; icon: NavIcon; match: (p: string) => b
   { href: "/dashboard/sites", label: "Websites", icon: Globe, match: (p: string) => p.startsWith("/dashboard/sites") },
   { href: "/dashboard/sales", label: "Sales", icon: Tag, match: (p: string) => p.startsWith("/dashboard/sales") },
   { href: "/dashboard/agents", label: "Agents", icon: AgentsIcon, match: (p: string) => p.startsWith("/dashboard/agents") },
+  {
+    href: "/dashboard/academy",
+    label: "Academy",
+    icon: GraduationCap,
+    match: (p: string) => p.startsWith("/dashboard/academy"),
+    compedOnly: true,
+  },
   { href: "/dashboard/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/dashboard/settings") },
 ];
+
+// Coach's voice session, kept alive across pages. Loaded only for accounts that can use Academy.
+const CoachVoiceHost = dynamic(() => import("@/components/academy/coach-voice"), { ssr: false });
 
 // Pages that share one transition, so switching chats or a new chat getting its URL doesn't re-animate.
 function section(pathname: string) {
@@ -200,6 +212,7 @@ function Frame({ initialCollapsed, children }: { initialCollapsed: boolean; chil
 
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
       <Tour />
+      {billing.comped && <CoachVoiceHost />}
     </div>
   );
 }
@@ -216,7 +229,7 @@ function Sidebar({
   onNavigate: () => void;
 }) {
   const pathname = usePathname();
-  const { conversations } = useWorkspace();
+  const { conversations, billing } = useWorkspace();
 
   return (
     <nav aria-label="Workspace" className="flex min-h-0 w-full flex-col px-3 py-3">
@@ -268,7 +281,7 @@ function Sidebar({
       </div>
 
       <ul className="mt-5 space-y-0.5">
-        {NAV.map(({ href, label, icon: Icon, match, soon }) => {
+        {NAV.filter((n) => !n.compedOnly || billing.comped).map(({ href, label, icon: Icon, match, soon }) => {
           const active = match(pathname);
           return (
             <li key={href}>
@@ -507,6 +520,16 @@ function AccountMenu({ collapsed }: { collapsed: boolean }) {
             >
               <Compass size={16} strokeWidth={1.5} /> Take the tour
             </button>
+            {billing.comped && (
+              <Link
+                role="menuitem"
+                href="/dashboard/academy"
+                onClick={() => setOpen(false)}
+                className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-[14px] text-fg-2 hover:bg-fg/5 hover:text-fg"
+              >
+                <GraduationCap size={16} strokeWidth={1.5} /> Academy
+              </Link>
+            )}
             <Link
               role="menuitem"
               href="/dashboard/settings#billing"

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { AgentsIcon } from "./agents-icon";
-import { CornerDownLeft, Globe, KeyRound, MessageCircle, Monitor, Moon, Plus, Search, Settings, SquarePen, Sun } from "lucide-react";
+import { CornerDownLeft, Globe, GraduationCap, KeyRound, MessageCircle, Monitor, Moon, Plus, Search, Settings, SquarePen, Sun } from "lucide-react";
 import { useWorkspace } from "./workspace";
 
 type Item = { id: string; group: string; label: string; hint?: string; icon: typeof Search | typeof AgentsIcon; run: () => void };
@@ -18,7 +18,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 function Palette({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const reduce = useReducedMotion();
-  const { conversations, setTheme } = useWorkspace();
+  const { conversations, setTheme, billing } = useWorkspace();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [sites, setSites] = useState<SiteRow[]>([]);
@@ -42,6 +42,12 @@ function Palette({ onClose }: { onClose: () => void }) {
       { id: "new-site", group: "Actions", label: "New website", icon: Plus, run: go("/dashboard/sites#new") },
       { id: "sites", group: "Actions", label: "Go to Websites", icon: Globe, run: go("/dashboard/sites") },
       { id: "agents", group: "Actions", label: "Go to Agents", icon: AgentsIcon, run: go("/dashboard/agents") },
+      ...(billing.comped
+        ? [
+            { id: "academy", group: "Actions", label: "Go to Academy", icon: GraduationCap, run: go("/dashboard/academy") },
+            { id: "practice", group: "Actions", label: "Practice a cold call", icon: GraduationCap, run: go("/dashboard/academy/practice") },
+          ]
+        : []),
       { id: "settings", group: "Actions", label: "Settings", icon: Settings, run: go("/dashboard/settings") },
       { id: "password", group: "Actions", label: "Change password", icon: KeyRound, run: go("/dashboard/settings#security") },
       { id: "light", group: "Appearance", label: "Light theme", icon: Sun, run: () => (setTheme("light"), onClose()) },
@@ -80,7 +86,7 @@ function Palette({ onClose }: { onClose: () => void }) {
     }
     return all.filter((i) => `${i.label} ${i.hint ?? ""}`.toLowerCase().includes(q));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, conversations, sites]);
+  }, [query, conversations, sites, billing.comped]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });

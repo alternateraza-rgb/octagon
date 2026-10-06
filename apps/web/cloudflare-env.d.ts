@@ -31,6 +31,10 @@ interface __BaseEnv_CloudflareEnv {
 	CF_ZONE_ID: string;
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
+	// Academy's voice Coach and practice prospect (ElevenLabs Agents); voice stays off until the key and the agent's id are set.
+	ELEVENLABS_API_KEY?: string;
+	ELEVENLABS_COACH_AGENT_ID?: string;
+	ELEVENLABS_PROSPECT_AGENT_ID?: string;
 	WORKER_SELF_REFERENCE: Service<typeof import("./worker").default>;
 }
 declare namespace Cloudflare {
