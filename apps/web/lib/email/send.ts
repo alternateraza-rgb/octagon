@@ -9,11 +9,17 @@ export async function sendEmail(env: CloudflareEnv, email: Email) {
     console.error("RESEND_API_KEY is not set; email not sent:", email.subject);
     return false;
   }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ ...email, from: email.from ?? FROM }),
-  });
-  if (!res.ok) console.error("Resend rejected email", res.status, await res.text().catch(() => ""));
-  return res.ok;
+  // Never throws: a failed send mustn't break sign-up or stop the emails queued after it.
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ ...email, from: email.from ?? FROM }),
+    });
+    if (!res.ok) console.error("Resend rejected email", res.status, await res.text().catch(() => ""));
+    return res.ok;
+  } catch (err) {
+    console.error("Email send failed:", email.subject, err);
+    return false;
+  }
 }
