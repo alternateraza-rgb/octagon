@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { BuyView, InviteStatus } from "@/components/sales/buy-view";
+import { paymentFailed } from "@/lib/billing/checkout-return";
 import { getSession } from "@/lib/auth/server";
 import { sendEmail } from "@/lib/email/send";
 import { saleViewedEmail } from "@/lib/email/templates";
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: "Your new website", robots: { index: 
 
 // Public: where an invite link lands. The client sees their site full-screen and can buy it.
 export default async function BuyPage({ params, searchParams }: PageProps<"/buy/[token]">) {
-  const [{ token }, { paid }] = await Promise.all([params, searchParams]);
+  const [{ token }, { paid, status }] = await Promise.all([params, searchParams]);
   const { env, ctx } = await getCloudflareContext({ async: true });
   const sale = await getSaleByToken(env.DB, token);
   if (!sale || sale.status === "canceled") return <InviteStatus kind="gone" />;
@@ -31,6 +32,7 @@ export default async function BuyPage({ params, searchParams }: PageProps<"/buy/
     <BuyView
       token={token}
       returning={typeof paid === "string"}
+      declined={typeof status === "string" && paymentFailed(status)}
       sale={{
         siteTitle: sale.siteTitle ?? "Your website",
         sellerName: sale.sellerName,

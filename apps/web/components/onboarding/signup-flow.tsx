@@ -39,6 +39,8 @@ export function SignupFlow({
   const [submitting, setSubmitting] = useState(false);
   const [checkout, setCheckout] = useState<{ plan: PlanId; interval: Interval } | null>(null);
 
+  // Where a new account carries on once it has a plan.
+  const dashboardUrl = prompt ? `/dashboard/sites?prompt=${encodeURIComponent(prompt)}` : "/dashboard";
   const template = TEMPLATES.find((t) => t.slug === templateSlug) ?? TEMPLATES[0];
   const Preview = template.Component;
 
@@ -92,7 +94,7 @@ export function SignupFlow({
                 {google && (
                   // Google accounts skip the plan step here: the dashboard asks for a plan before anything else.
                   <GoogleButton
-                    callbackURL={prompt ? `/dashboard/sites?prompt=${encodeURIComponent(prompt)}` : "/dashboard"}
+                    callbackURL={dashboardUrl}
                     errorURL={`/start${prompt || templateSlug ? `?${new URLSearchParams({ ...(prompt && { prompt }), ...(templateSlug && { template: templateSlug }) })}` : ""}`}
                   />
                 )}
@@ -165,7 +167,7 @@ export function SignupFlow({
                 <p className="mt-3 text-[16px] text-fg-2">Your plan is active and your idea is waiting in the builder.</p>
                 {prompt && <p className="mt-6 bg-white p-4 text-[15px] ring-1 ring-black/10">{prompt}</p>}
                 <Link
-                  href={prompt ? `/dashboard/sites?prompt=${encodeURIComponent(prompt)}` : "/dashboard"}
+                  href={dashboardUrl}
                   className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0f0f0f] text-[15px] font-medium text-white transition-colors hover:bg-octa-700"
                 >
                   {prompt ? "Build my site" : "Go to your dashboard"} <ArrowRight size={16} />
@@ -179,6 +181,8 @@ export function SignupFlow({
           open={!!checkout}
           plan={checkout}
           theme="light"
+          // If Whop moves the tab on after paying, Settings waits for the plan and then carries on to the dashboard.
+          returnUrl={`/dashboard/settings?${new URLSearchParams({ checkout: "done", next: dashboardUrl })}`}
           onClose={() => setCheckout(null)}
           onActivated={() => setStep("done")}
         />

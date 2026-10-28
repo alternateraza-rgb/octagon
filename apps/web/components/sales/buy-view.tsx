@@ -4,13 +4,9 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight, Check, Globe, Lock, MessageSquareQuote, X } from "lucide-react";
-import { clearWhopOverlays } from "@/lib/billing/whop-overlays";
 import { money } from "@/lib/sales/money";
 
-const WhopCheckoutEmbed = dynamic(() => import("@whop/checkout/react").then((m) => m.WhopCheckoutEmbed), {
-  ssr: false,
-  loading: () => <EmbedLoading />,
-});
+const WhopCheckout = dynamic(() => import("@/components/billing/whop-checkout"), { ssr: false, loading: () => <EmbedLoading /> });
 
 type SaleInfo = {
   siteTitle: string;
@@ -33,10 +29,21 @@ const spring = { type: "spring", stiffness: 320, damping: 32 } as const;
 
 // The invite page: the client's new site full-screen, with a floating bar to buy it. Paying runs
 // in Whop's embedded checkout, first for the site, then (if the seller charges for it) hosting.
-export function BuyView({ token, sale: initial, returning }: { token: string; sale: SaleInfo; returning: boolean }) {
+export function BuyView({
+  token,
+  sale: initial,
+  returning,
+  declined,
+}: {
+  token: string;
+  sale: SaleInfo;
+  returning: boolean;
+  // Back from a payment step that failed or was canceled: nothing was charged.
+  declined: boolean;
+}) {
   const reduce = useReducedMotion();
   const [sale, setSale] = useState(initial);
-  // Back from Whop's own checkout tab (the fallback link): pick up where the purchase left off.
+  // Back from paying (in the checkout or Whop's own tab): pick up where the purchase left off.
   const [open, setOpen] = useState(returning);
   const [showNote, setShowNote] = useState(!!initial.message);
   const paid = sale.status === "paid";
@@ -124,7 +131,7 @@ export function BuyView({ token, sale: initial, returning }: { token: string; sa
       </div>
 
       <AnimatePresence>
-        {open && <CheckoutSheet token={token} sale={sale} onSale={setSale} onClose={() => setOpen(false)} />}
+        {open && <CheckoutSheet token={token} sale={sale} declined={declined} onSale={setSale} onClose={() => setOpen(false)} />}
       </AnimatePresence>
     </main>
   );
@@ -133,11 +140,13 @@ export function BuyView({ token, sale: initial, returning }: { token: string; sa
 function CheckoutSheet({
   token,
   sale,
+  declined,
   onSale,
   onClose,
 }: {
   token: string;
   sale: SaleInfo;
+  declined: boolean;
   onSale: (sale: SaleInfo) => void;
   onClose: () => void;
 }) {
@@ -152,6 +161,7 @@ function CheckoutSheet({
   // Paid in the embed; waiting for the payment to be confirmed.
   const [confirming, setConfirming] = useState(false);
   const [slow, setSlow] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const current = step !== "done" && loaded?.kind === step ? loaded : null;
   const checkout = current?.checkout ?? null;
   const error = current?.error ?? "";
@@ -215,13 +225,6 @@ function CheckoutSheet({
     };
   }, [step, token, confirming]);
 
-  useEffect(() => {
-    if (step !== "done") return;
-    const timers = [0, 2000].map((ms) => setTimeout(clearWhopOverlays, ms));
-    return () => timers.forEach(clearTimeout);
-  }, [step]);
-  useEffect(() => () => void setTimeout(clearWhopOverlays, 0), []);
-
   const closable = !confirming || slow;
   const title = step === "site" ? "Make it yours" : step === "hosting" ? "Put it online" : "It's yours";
 
@@ -271,6 +274,16 @@ function CheckoutSheet({
                 <Summary sale={sale} step={step} />
 
                 {confirming && <Confirming slow={slow} />}
+                {declined && !confirming && (
+                  <p role="status" className="mt-4 rounded-[16px] bg-fg/[.05] px-4 py-3 text-[14px] text-fg-2">
+                    That payment didn&apos;t go through, and you weren&apos;t charged. You can try again below.
+                  </p>
+                )}
+                {loadFailed && !confirming && (
+                  <p role="alert" className="mt-4 rounded-[16px] bg-red-500/10 px-4 py-3 text-[14px] text-red-700 dark:text-red-300">
+                    Checkout couldn&apos;t load here. Use &ldquo;Open in a new tab&rdquo; below to pay on Whop.
+                  </p>
+                )}
                 {error && (
                   <p role="alert" className="mt-4 rounded-[16px] bg-red-500/10 px-4 py-3 text-[14px] text-red-700 dark:text-red-300">
                     {error}{" "}
@@ -280,7 +293,7 @@ function CheckoutSheet({
                   </p>
                 )}
                 {checkout && (
-                  // Stays mounted after payment so Whop can finish and close its own overlay.
+                  // Stays mounted after payment so Whop can finish, which may move the tab to `returnUrl`.
                   <div className={confirming ? "pointer-events-none absolute h-0 overflow-hidden opacity-0" : "relative mt-5 min-h-[420px]"}>
                     {!ready && (
                       <div className="absolute inset-0">
@@ -288,15 +301,16 @@ function CheckoutSheet({
                       </div>
                     )}
                     <div className={`transition-opacity duration-300 ${ready ? "opacity-100" : "opacity-0"}`}>
-                      <WhopCheckoutEmbed
+                      <WhopCheckout
                         key={checkout.id}
-                        sessionId={checkout.id}
-                        theme="system"
-                        skipRedirect
-                        prefill={{ email: sale.buyerEmail }}
-                        themeOptions={{ accentColor: "#c2410c", borderRadius: 12 }}
-                        onStateChange={(state) => state !== "loading" && setReadyId(checkout.id)}
-                        onComplete={() => setConfirming(true)}
+                        id={checkout.id}
+                        returnUrl={`/buy/${token}?paid=${checkout.kind}`}
+                        onReady={() => setReadyId(checkout.id)}
+                        onPaid={() => setConfirming(true)}
+                        onLoadError={() => {
+                          setLoadFailed(true);
+                          setReadyId(checkout.id);
+                        }}
                       />
                     </div>
                   </div>
