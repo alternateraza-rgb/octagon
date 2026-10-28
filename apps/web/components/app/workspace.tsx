@@ -136,6 +136,7 @@ export function WorkspaceProvider({
         message={dialog?.message}
         current={billing.active && billing.plan ? { plan: billing.plan, interval: billing.interval } : null}
         theme={theme}
+        email={me.email}
         onClose={() => setDialog(null)}
         onActivated={(status) => {
           setBilling(summarize(status));
