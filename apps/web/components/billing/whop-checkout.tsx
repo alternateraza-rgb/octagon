@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Checkout, CheckoutElement, WhopElements } from "@whop/elements-react";
 import { loadWhop } from "@whop/elements";
-import { checkoutAppearance } from "@/lib/billing/checkout-appearance";
+import { checkoutAppearance, type Surface } from "@/lib/billing/checkout-appearance";
 
 export type CheckoutTheme = "light" | "dark" | "system";
 
@@ -16,6 +16,7 @@ export default function WhopCheckout({
   returnUrl,
   theme = "system",
   email,
+  surface,
   hideSeller,
   onReady,
   onPaid,
@@ -26,6 +27,8 @@ export default function WhopCheckout({
   theme?: CheckoutTheme;
   // The buyer's email when we already know it; they can still change it.
   email?: string;
+  // The surface the checkout sits on, so it paints the same color in either scheme.
+  surface: Surface;
   // Leave out Whop's seller line where the page around the checkout already names who's paid.
   hideSeller?: boolean;
   onReady?: () => void;
@@ -35,7 +38,7 @@ export default function WhopCheckout({
   // One shared load: loadWhop() injects the script once however often it's called.
   const [elements] = useState(loadWhop);
   const scheme = useScheme(theme);
-  const appearance = useMemo(() => checkoutAppearance(scheme, { hideSeller }), [scheme, hideSeller]);
+  const appearance = useMemo(() => checkoutAppearance(scheme, surface, { hideSeller }), [scheme, surface, hideSeller]);
 
   return (
     <WhopElements

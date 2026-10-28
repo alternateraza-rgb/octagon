@@ -306,6 +306,7 @@ function CheckoutSheet({
                         id={checkout.id}
                         returnUrl={`/buy/${token}?paid=${checkout.kind}`}
                         email={sale.buyerEmail}
+                        surface="elevated"
                         onReady={() => setReadyId(checkout.id)}
                         onPaid={() => setConfirming(true)}
                         onLoadError={() => {
