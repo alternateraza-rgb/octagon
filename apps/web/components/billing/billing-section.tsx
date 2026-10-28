@@ -8,6 +8,7 @@ import { Card } from "@/components/settings/card";
 import { summarize, useWorkspace } from "@/components/app/workspace";
 import { useToast } from "@/components/ui/toast";
 import { fetchBillingStatus, type BillingStatus } from "@/lib/billing/client";
+import { paymentFailed } from "@/lib/billing/checkout-return";
 import { formatBytes, planById, type Meter } from "@/lib/billing/plans";
 import { PlanCards } from "./plan-cards";
 
@@ -30,14 +31,27 @@ export function Billing({ status }: { status: BillingStatus }) {
   const { access, usage } = status;
   const plan = planById(access.plan);
 
-  // Back from Whop's own checkout page: wait for the webhook to switch the plan on.
+  // Back from paying (Whop's checkout sends the tab here): wait for the webhook to switch the plan on.
+  // Sign-up passes `next`, the page to carry on to once it's on.
   const returning = params.get("checkout") === "done";
+  const failed = paymentFailed(params.get("status"));
+  const next = params.get("next");
+  const destination = next?.startsWith("/dashboard") ? next : "/dashboard/settings#billing";
   const notify = useRef({ toast, setBilling });
   useEffect(() => {
     notify.current = { toast, setBilling };
   });
   useEffect(() => {
-    if (!returning || access.active) return;
+    if (!returning) return;
+    if (failed) {
+      notify.current.toast.error("Your payment didn't go through, and you weren't charged.");
+      router.replace("/dashboard/settings#billing");
+      return;
+    }
+    if (access.active) {
+      if (next) router.replace(destination);
+      return;
+    }
     let stopped = false;
     let tries = 0;
     const tick = async () => {
@@ -46,7 +60,7 @@ export function Billing({ status }: { status: BillingStatus }) {
       if (next?.access.active) {
         notify.current.setBilling(summarize(next));
         notify.current.toast.success(`You're on ${planById(next.access.plan)?.name ?? "your new plan"}`);
-        router.replace("/dashboard/settings#billing");
+        router.replace(destination);
         router.refresh();
         return;
       }
@@ -57,7 +71,7 @@ export function Billing({ status }: { status: BillingStatus }) {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [returning, access.active, router]);
+  }, [returning, failed, next, destination, access.active, router]);
 
   if (!access.active || !plan) {
     return (

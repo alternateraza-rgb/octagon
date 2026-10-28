@@ -7,13 +7,12 @@ import { ArrowLeft, ArrowUpRight, Check, Lock, X } from "lucide-react";
 import { planById, priceFor, type Interval, type PlanId } from "@/lib/billing/plans";
 import { fetchBillingStatus, type BillingStatus } from "@/lib/billing/client";
 import { PlanCards } from "./plan-cards";
-import { clearWhopOverlays } from "@/lib/billing/whop-overlays";
 
-// Whop's embed touches `window` as it loads, so it only ever renders in the browser.
-const WhopCheckoutEmbed = dynamic(() => import("@whop/checkout/react").then((m) => m.WhopCheckoutEmbed), {
-  ssr: false,
-  loading: () => <EmbedLoading />,
-});
+// Whop Elements loads from Whop's CDN in the browser, so it only ever renders there.
+const WhopCheckout = dynamic(() => import("./whop-checkout"), { ssr: false, loading: () => <EmbedLoading /> });
+
+// Where Whop sends the tab once checkout finishes; Settings › Billing waits there for the plan.
+const SETTINGS_RETURN = "/dashboard/settings?checkout=done";
 
 type Step = "plans" | "checkout" | "done";
 type Choice = { plan: PlanId; interval: Interval };
@@ -26,6 +25,7 @@ export function BillingDialog({
   current,
   message,
   theme = "system",
+  returnUrl = SETTINGS_RETURN,
   onClose,
   onActivated,
 }: {
@@ -36,11 +36,15 @@ export function BillingDialog({
   // Why the dialog opened, e.g. a limit that was reached.
   message?: string;
   theme?: "light" | "dark" | "system";
+  // Where the tab lands after paying; it has to pick up a plan that may still be activating.
+  returnUrl?: string;
   onClose: () => void;
   onActivated: (status: BillingStatus) => void;
 }) {
   return (
-    <AnimatePresence>{open && <Dialog {...{ initialPlan, current, message, theme, onClose, onActivated }} />}</AnimatePresence>
+    <AnimatePresence>
+      {open && <Dialog {...{ initialPlan, current, message, theme, returnUrl, onClose, onActivated }} />}
+    </AnimatePresence>
   );
 }
 
@@ -49,6 +53,7 @@ function Dialog({
   current,
   message,
   theme,
+  returnUrl,
   onClose,
   onActivated,
 }: {
@@ -56,6 +61,7 @@ function Dialog({
   current?: Choice | null;
   message?: string;
   theme: "light" | "dark" | "system";
+  returnUrl: string;
   onClose: () => void;
   onActivated: (status: BillingStatus) => void;
 }) {
@@ -66,6 +72,7 @@ function Dialog({
   const [error, setError] = useState("");
   const [slow, setSlow] = useState(false);
   const [embedReady, setEmbedReady] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   // Paid in the embed; waiting for Whop's webhook to switch the plan on.
   const [paid, setPaid] = useState(false);
   const activatedRef = useRef(onActivated);
@@ -132,15 +139,6 @@ function Dialog({
       clearTimeout(timer);
     };
   }, [session, step, paid]);
-
-  // Whop's embed covers the page with its own overlay while a payment processes and closes it
-  // shortly after. Make sure none is left behind once checkout is over or this dialog closes.
-  useEffect(() => {
-    if (step !== "done") return;
-    const timers = [0, 2000].map((ms) => setTimeout(clearWhopOverlays, ms));
-    return () => timers.forEach(clearTimeout);
-  }, [step]);
-  useEffect(() => () => void setTimeout(clearWhopOverlays, 0), []);
 
   const plan = session ? planById(session.plan)! : null;
   const activating = step === "checkout" && paid;
@@ -232,7 +230,7 @@ function Dialog({
           {step === "checkout" && session && (
             <motion.div key="checkout" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {paid && <Activating slow={slow} />}
-              {/* Stays mounted after payment so Whop can finish and close its own overlay. */}
+              {/* Stays mounted after payment so Whop can finish, which may move the tab to `returnUrl`. */}
               <div
                 aria-hidden={paid || undefined}
                 className={
@@ -247,16 +245,24 @@ function Dialog({
                   </div>
                 )}
                 <div className={`transition-opacity duration-300 ${embedReady ? "opacity-100" : "opacity-0"}`}>
-                  <WhopCheckoutEmbed
-                    sessionId={session.id}
+                  <WhopCheckout
+                    id={session.id}
+                    returnUrl={returnUrl}
                     theme={theme}
-                    skipRedirect
-                    themeOptions={{ accentColor: "#c2410c", borderRadius: 12 }}
-                    onStateChange={(state) => state !== "loading" && setEmbedReady(true)}
-                    onComplete={() => setPaid(true)}
+                    onReady={() => setEmbedReady(true)}
+                    onPaid={() => setPaid(true)}
+                    onLoadError={() => {
+                      setLoadFailed(true);
+                      setEmbedReady(true);
+                    }}
                   />
                 </div>
               </div>
+              {loadFailed && !paid && (
+                <p role="alert" className="mt-4 text-center text-[14px] text-red-600">
+                  Checkout couldn&apos;t load here. Use the secure checkout link below instead.
+                </p>
+              )}
               {!paid && (
                 <a
                   href={session.purchaseUrl}
