@@ -153,7 +153,9 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-6"
+      // Rendered outside the app shell, so it takes the chosen theme itself.
+      data-theme={theme === "system" ? undefined : theme}
+      className="fixed inset-0 z-[90] flex items-end justify-center text-fg sm:items-center sm:p-6"
       onKeyDown={(e) => e.key === "Escape" && closable && onClose()}
     >
       <motion.div
@@ -257,6 +259,7 @@ function Dialog({
                     returnUrl={returnUrl}
                     theme={theme}
                     email={email}
+                    surface="canvas"
                     hideSeller
                     onReady={() => setEmbedReady(true)}
                     onPaid={() => setPaid(true)}

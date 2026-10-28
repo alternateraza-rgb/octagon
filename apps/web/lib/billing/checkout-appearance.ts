@@ -5,13 +5,19 @@ import type { Appearance } from "@whop/elements-react";
 // values and handed to Whop as per-part styles. Keep the two in step.
 const OCTA = { 600: "#c2410c", 700: "#9a3412" };
 const SCHEMES = {
-  light: { fg: "#0f0f0f", fg2: "#5f5f63", fg3: "#86868b", field: "#ffffff", hairline: "rgba(0, 0, 0, 0.1)" },
-  dark: { fg: "#f5f5f7", fg2: "#a1a1a6", fg3: "#86868b", field: "#0b0b0c", hairline: "rgba(255, 255, 255, 0.1)" },
+  light: { canvas: "#f9f8f6", elevated: "#ffffff", fg: "#0f0f0f", fg2: "#5f5f63", fg3: "#86868b", field: "#ffffff", hairline: "rgba(0, 0, 0, 0.1)" },
+  dark: { canvas: "#000000", elevated: "#161617", fg: "#f5f5f7", fg2: "#a1a1a6", fg3: "#86868b", field: "#0b0b0c", hairline: "rgba(255, 255, 255, 0.1)" },
 };
+
+// The token the checkout sits on: `bg-canvas` (the plan dialog) or `bg-elevated` (the buy sheet).
+export type Surface = "canvas" | "elevated";
 const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, system-ui, sans-serif';
 
-export function checkoutAppearance(scheme: "light" | "dark", { hideSeller = false } = {}): Appearance {
+export function checkoutAppearance(scheme: "light" | "dark", surface: Surface, { hideSeller = false } = {}): Appearance {
   const c = SCHEMES[scheme];
+  // Every column paints the surface itself: Whop's own panel colors don't match ours, and a
+  // transparent frame shows whatever is behind it, which needn't be in the same scheme.
+  const background = { backgroundColor: c[surface] };
   const input = {
     backgroundColor: c.field,
     border: `1px solid ${c.hairline}`,
@@ -28,9 +34,12 @@ export function checkoutAppearance(scheme: "light" | "dark", { hideSeller = fals
     theme: { appearance: scheme, accentColor: "orange", grayColor: "sand", dangerColor: "red", successColor: "green" },
     variables: { "--radius": "12px" },
     classes: {
-      "whop-Checkout": { fontFamily: FONT, color: c.fg, backgroundColor: "transparent" },
+      "whop-Checkout": { ...background, fontFamily: FONT, color: c.fg },
+      "whop-CheckoutLayout": background,
+      "whop-CheckoutDetails": background,
+      "whop-CheckoutCollection": background,
       // The dialog around it already says what's being bought and from whom.
-      ...(hideSeller && { "whop-CheckoutSeller": { display: "none" } }),
+      ...(hideSeller && { "whop-CheckoutSeller": { display: "none" }, "whop-CheckoutSellerLogo": { display: "none" } }),
       "whop-CheckoutPrice": { fontWeight: "600", letterSpacing: "-0.025em", color: c.fg },
       "whop-CheckoutPriceContext": { fontSize: "13px", color: c.fg3 },
       "whop-CheckoutItem": { fontWeight: "600", letterSpacing: "-0.01em" },
