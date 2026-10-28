@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Checkout, CheckoutElement, WhopElements, type Appearance } from "@whop/elements-react";
+import { useEffect, useMemo, useState } from "react";
+import { Checkout, CheckoutElement, WhopElements } from "@whop/elements-react";
 import { loadWhop } from "@whop/elements";
+import { checkoutAppearance } from "@/lib/billing/checkout-appearance";
 
 export type CheckoutTheme = "light" | "dark" | "system";
 
@@ -14,6 +15,8 @@ export default function WhopCheckout({
   id,
   returnUrl,
   theme = "system",
+  email,
+  hideSeller,
   onReady,
   onPaid,
   onLoadError,
@@ -21,6 +24,10 @@ export default function WhopCheckout({
   id: string;
   returnUrl: string;
   theme?: CheckoutTheme;
+  // The buyer's email when we already know it; they can still change it.
+  email?: string;
+  // Leave out Whop's seller line where the page around the checkout already names who's paid.
+  hideSeller?: boolean;
   onReady?: () => void;
   onPaid?: () => void;
   onLoadError?: () => void;
@@ -28,10 +35,7 @@ export default function WhopCheckout({
   // One shared load: loadWhop() injects the script once however often it's called.
   const [elements] = useState(loadWhop);
   const scheme = useScheme(theme);
-  const appearance: Appearance = {
-    theme: { appearance: scheme, accentColor: "orange", grayColor: "auto" },
-    variables: { "--radius": "12px" },
-  };
+  const appearance = useMemo(() => checkoutAppearance(scheme, { hideSeller }), [scheme, hideSeller]);
 
   return (
     <WhopElements
@@ -48,7 +52,7 @@ export default function WhopCheckout({
         onLoadingChange={(loading) => !loading && onReady?.()}
         onComplete={(completion) => completion.result === "payment" && onPaid?.()}
       >
-        <CheckoutElement />
+        <CheckoutElement buyerEmail={email} />
       </Checkout>
     </WhopElements>
   );

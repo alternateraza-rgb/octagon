@@ -6,6 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowUpRight, Check, Lock, X } from "lucide-react";
 import { planById, priceFor, type Interval, type PlanId } from "@/lib/billing/plans";
 import { fetchBillingStatus, type BillingStatus } from "@/lib/billing/client";
+import { OctacoreMark } from "@octacore/ui/logo";
 import { PlanCards } from "./plan-cards";
 
 // Whop Elements loads from Whop's CDN in the browser, so it only ever renders there.
@@ -26,6 +27,7 @@ export function BillingDialog({
   message,
   theme = "system",
   returnUrl = SETTINGS_RETURN,
+  email,
   onClose,
   onActivated,
 }: {
@@ -38,12 +40,14 @@ export function BillingDialog({
   theme?: "light" | "dark" | "system";
   // Where the tab lands after paying; it has to pick up a plan that may still be activating.
   returnUrl?: string;
+  // Prefills the checkout's email field.
+  email?: string;
   onClose: () => void;
   onActivated: (status: BillingStatus) => void;
 }) {
   return (
     <AnimatePresence>
-      {open && <Dialog {...{ initialPlan, current, message, theme, returnUrl, onClose, onActivated }} />}
+      {open && <Dialog {...{ initialPlan, current, message, theme, returnUrl, email, onClose, onActivated }} />}
     </AnimatePresence>
   );
 }
@@ -54,6 +58,7 @@ function Dialog({
   message,
   theme,
   returnUrl,
+  email,
   onClose,
   onActivated,
 }: {
@@ -62,6 +67,7 @@ function Dialog({
   message?: string;
   theme: "light" | "dark" | "system";
   returnUrl: string;
+  email?: string;
   onClose: () => void;
   onActivated: (status: BillingStatus) => void;
 }) {
@@ -181,6 +187,7 @@ function Dialog({
             </button>
           )}
           <div className="min-w-0 flex-1">
+            {step === "checkout" && <OctacoreMark size={28} className="mb-3" />}
             <h2 className="font-[family-name:var(--font-display)] text-[28px] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-[32px]">
               {step === "plans" && (current ? "Change your plan" : "Choose your plan")}
               {step === "checkout" && !paid && plan && (paid ? "Setting up your plan…" : `Octacore ${plan.name}`)}
@@ -249,6 +256,8 @@ function Dialog({
                     id={session.id}
                     returnUrl={returnUrl}
                     theme={theme}
+                    email={email}
+                    hideSeller
                     onReady={() => setEmbedReady(true)}
                     onPaid={() => setPaid(true)}
                     onLoadError={() => {

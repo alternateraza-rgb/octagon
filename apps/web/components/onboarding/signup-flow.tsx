@@ -181,6 +181,7 @@ export function SignupFlow({
           open={!!checkout}
           plan={checkout}
           theme="light"
+          email={email || undefined}
           // If Whop moves the tab on after paying, Settings waits for the plan and then carries on to the dashboard.
           returnUrl={`/dashboard/settings?${new URLSearchParams({ checkout: "done", next: dashboardUrl })}`}
           onClose={() => setCheckout(null)}
